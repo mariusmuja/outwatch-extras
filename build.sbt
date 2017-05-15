@@ -14,5 +14,6 @@ libraryDependencies ++=
   "io.github.outwatch" %%% "outwatch" % "0.9.4-SNAPSHOT" ::
   "io.monix" %%% "monix" % "2.3.0" ::
   "com.softwaremill.quicklens" %%% "quicklens" % "1.4.8" ::
+  "com.github.japgolly.scalacss" %%% "core"  % "0.5.3" ::
   "org.scalatest" %%% "scalatest" % "3.0.1" % Test ::
   Nil

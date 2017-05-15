@@ -6,6 +6,8 @@ import outwatch.dom._
 import outwatch.util.Store
 import rxscalajs.Observable
 
+import scalacss.DevDefaults._
+import scalacss.internal.mutable.GlobalRegistry
 import scala.scalajs.js.JSApp
 import scala.util.Random
 
@@ -45,7 +47,44 @@ object LogModule extends Module {
 
 object TextField {
 
-  def apply(sink: Sink[String]): VNode = {
+
+  class Style(implicit r: StyleSheet.Register) extends StyleSheet.Inline()(r) {
+
+    import dsl._
+
+    val textfield = style (
+      addClassName("mdl-textfield mdl-js-textfield mdl-textfield--floating-label"),
+      paddingRight(8.px)
+    )
+
+    val textinput = style (
+      addClassName("mdl-textfield__input")
+    )
+
+    val textlabel = style (
+      addClassName("mdl-textfield__label")
+    )
+
+    val button = style (
+      addClassName("mdl-button mdl-js-button mdl-button--raised")
+    )
+  }
+
+  object Style {
+    lazy val default = {
+      val style = new Style
+      GlobalRegistry.register(style)
+      style
+    }
+  }
+
+
+  implicit def styleToAttr(styleA: StyleA): Attribute = {
+    cls := styleA.htmlClass
+  }
+
+
+  def apply(sink: Sink[String], style: Style = Style.default): VNode = {
 
     val inputTodo = createStringHandler()
 
@@ -56,14 +95,16 @@ object TextField {
     val enterdown = keydown.filter(_.keyCode == 13)
 
     div(
-      label("Todo: "),
-      input(
-        inputString --> inputTodo,
-        value <-- inputTodo,
-        enterdown(inputTodo) --> sink,
-        enterdown("") --> inputTodo
+      div(style.textfield,
+        label(style.textlabel, "Enter todo"),
+        input(style.textinput,
+          inputString --> inputTodo,
+          value <-- inputTodo,
+          enterdown(inputTodo) --> sink,
+          enterdown("") --> inputTodo
+        )
       ),
-      button(
+      button(style.button,
         click(inputTodo) --> sink,
         click("") --> inputTodo,
         disabled <-- disabledValues,
@@ -139,8 +180,6 @@ object MainComponent extends Module {
     case (state, _) => state
   }
 
-  def reducerFull(state: State, act: Action) : State = reducer(state, act)
-
   def apply(source: Observable[State], sink: Sink[Action]): VNode = {
     table(
       tbody(
@@ -155,9 +194,12 @@ object MainComponent extends Module {
 
 
 object RootModule {
-  val store = Store(MainComponent.State(), MainComponent.reducerFull)
-  val source = store.source.share
-  val sink = store.sink
+  val initialState = MainComponent.State()
+  val sink = createHandler[Action]()
+  val source = sink
+    .scan(initialState)((s, a) => MainComponent.reducer(s, a))
+    .startWith(initialState)
+    .share
 
   val root = MainComponent(source,sink)
 }
@@ -168,6 +210,7 @@ object RootModule {
 object TestApp extends JSApp {
 
   def main() = {
+    GlobalRegistry.addToDocumentOnRegistration()
     OutWatch.render("#app", RootModule.root)
   }
 }
