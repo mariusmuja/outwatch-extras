@@ -1,12 +1,15 @@
 package util
 
 import com.softwaremill.quicklens._
-import outwatch.Sink
+import outwatch.{MergedSink, ObserverSink, Sink}
 import outwatch.dom._
 import rxscalajs.subscription.Subscription
-import rxscalajs.{Observable, Subject}
+import rxscalajs.{Observable, Observer, Subject}
+import util.LogModule.LogAction
 import util.StyleAdaptors._
+import util.TodoModule.AddTodo
 
+import scala.scalajs.js
 import scala.scalajs.js.JSApp
 import scala.util.Random
 import scalacss.DevDefaults._
@@ -16,6 +19,13 @@ trait Action
 
 object Module {
   type Reducer[State, Action] = PartialFunction[(State, Action), State]
+}
+
+
+trait Effects {
+  type EffectHandler = PartialFunction[Action, Observable[Action]]
+
+  val effects: EffectHandler = PartialFunction.empty
 }
 
 trait Module {
@@ -165,7 +175,7 @@ object TextField {
 }
 
 
-object TodoModule extends Module {
+object TodoModule extends Module with Effects {
 
   import LogModule.LogAction
 
@@ -219,14 +229,7 @@ object TodoModule extends Module {
 
   def apply(source: Observable[State], sink: ActionSink): VNode = {
 
-    val stringSink = sink.redirect[String]{ item =>
-      item.flatMap { s =>
-        Observable.just(
-          LogAction(s"Add action: $s"),
-          AddTodo(s)
-        )
-      }
-    }
+    val stringSink = sink.redirect[String]{ item => item.map(AddTodo) }
 
     val todoViews = source
       .map(_.todos.map(todoComponent(_, sink)))
@@ -236,10 +239,19 @@ object TodoModule extends Module {
       ul(children <-- todoViews)
     )
   }
+
+
+  override val effects: EffectHandler = {
+    case AddTodo(s) =>
+      Observable.just(LogAction(s"Add action: $s")).merge(
+        Observable.interval(1000).take(1).mapTo(AddTodo(s"Later: $s"))
+      )
+  }
+
 }
 
 
-object MainComponent extends Module {
+object MainComponent extends Module with Effects {
 
   case class State(
     todo: TodoModule.State = TodoModule.State(),
@@ -252,6 +264,12 @@ object MainComponent extends Module {
     case (state, act) if LogModule.reducer.isDefinedAt((state.log, act)) =>
       state.modify(_.log).using(LogModule.reducer(_, act))
     case (state, _) => state
+  }
+
+  override val effects : EffectHandler = {
+    case obs if TodoModule.effects.isDefinedAt(obs) =>
+      TodoModule.effects(obs)
+    case _ => Observable.just()
   }
 
   def apply(source: Observable[State], sink: ActionSink): VNode = {
@@ -273,6 +291,11 @@ object RootModule {
 
   val initialState = MainComponent.State()
   val sink = createHandler[Action]()
+  val sinkWithEffects = sink.redirect[Action] { actions =>
+    val effects = actions.flatMap(MainComponent.effects)
+    actions.merge(effects)
+  }
+
   val source = sink
     .scan(initialState)(MainComponent.reducer(_,_))
     .startWith(initialState)
@@ -280,7 +303,7 @@ object RootModule {
 
   Styles.subscribe(_.addToDocument())
 
-  val root = MainComponent(source, sink)
+  val root = MainComponent(source, sinkWithEffects)
 }
 
 
