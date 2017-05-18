@@ -1,15 +1,12 @@
 package util
 
 import com.softwaremill.quicklens._
-import outwatch.{MergedSink, ObserverSink, Sink}
+import outwatch.Sink
 import outwatch.dom._
 import rxscalajs.subscription.Subscription
-import rxscalajs.{Observable, Observer, Subject}
-import util.LogModule.LogAction
+import rxscalajs.{Observable, Subject}
 import util.StyleAdaptors._
-import util.TodoModule.AddTodo
 
-import scala.scalajs.js
 import scala.scalajs.js.JSApp
 import scala.util.Random
 import scalacss.DevDefaults._
@@ -17,24 +14,26 @@ import scalacss.DevDefaults._
 
 trait Action
 
-object Module {
-  type Reducer[State, Action] = PartialFunction[(State, Action), State]
-}
+trait Module {
+  type State
+  type Reducer = PartialFunction[(State, Action), State]
 
+  type ActionSink = Sink[Action]
+  type StateObservable = Observable[State]
+
+  val reducer: Reducer
+
+  def reducerFull(s: State, a: Action): State = reducer.applyOrElse((s, a), (x: (State, Action)) => x._1)
+}
 
 trait Effects {
   type EffectHandler = PartialFunction[Action, Observable[Action]]
 
   val effects: EffectHandler = PartialFunction.empty
+
+  def effectsFull(a: Action): Observable[Action] = effects.applyOrElse(a, (_:Action) => Observable.empty)
 }
 
-trait Module {
-  type State
-  type Reducer = Module.Reducer[State, Action]
-  type ActionSink = Sink[Action]
-
-  val reducer: Reducer
-}
 
 object Styles {
   private val inner = Subject[StyleSheet.Inline]()
@@ -50,6 +49,8 @@ object Styles {
 
 
 object StyleAdaptors {
+  import scala.language.implicitConversions
+
   implicit def styleToAttr(styleA: StyleA): Attribute = {
     cls := styleA.htmlClass
   }
@@ -83,7 +84,7 @@ object MdlStyles extends StyleSheet.Inline {
 object LogModule extends Module {
   case class LogAction(action: String) extends Action
 
-  class Style(implicit r: StyleSheet.Register) extends StyleSheet.Inline()(r) {
+  class Style extends StyleSheet.Inline {
 
     import dsl._
 
@@ -102,10 +103,10 @@ object LogModule extends Module {
   )
 
   val reducer: Reducer = {
-    case (state, LogAction(line)) => state.modify(_.log).using(_ :+ line)
+    case (state, LogAction(line)) => modify(state)(_.log).using(_ :+ line)
   }
 
-  def apply(source: Observable[State], stl: Style = Style.default): VNode = {
+  def apply(source: StateObservable, stl: Style = Style.default): VNode = {
     textarea(stl.textfield,
       child <-- source.map(_.log.mkString("\n"))
     )
@@ -116,7 +117,7 @@ object LogModule extends Module {
 
 object TextField {
 
-  class Style(implicit r: StyleSheet.Register) extends StyleSheet.Inline()(r) {
+  class Style extends StyleSheet.Inline {
 
     import dsl._
 
@@ -175,12 +176,13 @@ object TextField {
 }
 
 
+
 object TodoModule extends Module with Effects {
 
   import LogModule.LogAction
 
   case class AddTodo(value: String) extends Action
-  case class RemoveTodo(id: Int) extends Action
+  case class RemoveTodo(todo: Todo) extends Action
 
   case class Todo(id: Int, value: String)
   case class State(todos: Seq[Todo] = Seq())
@@ -189,12 +191,19 @@ object TodoModule extends Module with Effects {
 
 
   val reducer: Reducer = {
-    case (state, RemoveTodo(id)) => state.modify(_.todos).using(_.filter(_.id != id))
-    case (state, AddTodo(value)) => state.modify(_.todos).using(_ :+ Todo(newID, value))
+    case (state, RemoveTodo(todo)) => modify(state)(_.todos).using(_.filter(_.id != todo.id))
+    case (state, AddTodo(value)) => modify(state)(_.todos).using(_ :+ Todo(newID, value))
+  }
+
+  override val effects: EffectHandler = {
+    case AddTodo(s) =>
+      Observable.just(LogAction(s"Add action: $s"))
+    case RemoveTodo(todo) =>
+      Observable.just(LogAction(s"Remove action: ${todo.value}"))
   }
 
 
-  class Style(implicit r: StyleSheet.Register) extends StyleSheet.Inline()(r) {
+  class Style extends StyleSheet.Inline {
 
     import dsl._
 
@@ -220,14 +229,13 @@ object TodoModule extends Module with Effects {
     li(
       span(todo.value),
       button( stl.button,
-        click(LogAction(s"Remove action ${todo.value }")) --> sink,
-        click(RemoveTodo(todo.id)) --> sink,
+        click(RemoveTodo(todo)) --> sink,
         "Delete"
       )
     )
   }
 
-  def apply(source: Observable[State], sink: ActionSink): VNode = {
+  def apply(source: StateObservable, sink: ActionSink): VNode = {
 
     val stringSink = sink.redirect[String]{ item => item.map(AddTodo) }
 
@@ -238,14 +246,6 @@ object TodoModule extends Module with Effects {
       TextField(stringSink),
       ul(children <-- todoViews)
     )
-  }
-
-
-  override val effects: EffectHandler = {
-    case AddTodo(s) =>
-      Observable.just(LogAction(s"Add action: $s")).merge(
-        Observable.interval(1000).take(1).mapTo(AddTodo(s"Later: $s"))
-      )
   }
 
 }
@@ -260,19 +260,19 @@ object MainComponent extends Module with Effects {
 
   val reducer : Reducer = {
     case (state, act) if TodoModule.reducer.isDefinedAt((state.todo, act)) =>
-      state.modify(_.todo).using(TodoModule.reducer(_, act))
+      modify(state)(_.todo).using(TodoModule.reducer(_, act))
     case (state, act) if LogModule.reducer.isDefinedAt((state.log, act)) =>
-      state.modify(_.log).using(LogModule.reducer(_, act))
-    case (state, _) => state
+      modify(state)(_.log).using(LogModule.reducer(_, act))
   }
+
+//   combine(state.todo -> TodoModule.reducer, state.log -> LogModule.reducer)
 
   override val effects : EffectHandler = {
-    case obs if TodoModule.effects.isDefinedAt(obs) =>
-      TodoModule.effects(obs)
-    case _ => Observable.just()
+    case obs if TodoModule.effects.isDefinedAt(obs) => TodoModule.effects(obs)
   }
 
-  def apply(source: Observable[State], sink: ActionSink): VNode = {
+
+  def apply(source: StateObservable, sink: ActionSink): VNode = {
     table(
       tbody(
         tr(
@@ -289,21 +289,19 @@ object MainComponent extends Module with Effects {
 
 object RootModule {
 
+
   val initialState = MainComponent.State()
   val sink = createHandler[Action]()
-  val sinkWithEffects = sink.redirect[Action] { actions =>
-    val effects = actions.flatMap(MainComponent.effects)
-    actions.merge(effects)
-  }
+  sink <-- sink.flatMap(MainComponent.effectsFull)
 
   val source = sink
-    .scan(initialState)(MainComponent.reducer(_,_))
+    .scan(initialState)(MainComponent.reducerFull)
     .startWith(initialState)
     .share
 
   Styles.subscribe(_.addToDocument())
 
-  val root = MainComponent(source, sinkWithEffects)
+  val root = MainComponent(source, sink)
 }
 
 
