@@ -19,3 +19,4 @@ libraryDependencies ++=
   Nil
 
 
+//scalacOptions ++= Seq("-Xlog-implicits")

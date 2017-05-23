@@ -21,7 +21,7 @@ object Component {
   type ReducerFull[M] = (M, Action) =>  M
 
   implicit class toFullReducer[M](reducer: Reducer[M]) {
-    val ignoreReducer: ReducerFull[M] = (s: M, _: Action) => s
+    private val ignoreReducer: ReducerFull[M] = (s, _) => s
 
     def full: ReducerFull[M] = (s,a) => reducer.applyOrElse((s,a), ignoreReducer.tupled)
   }
@@ -57,7 +57,7 @@ object Effects {
   type EffectHandlerFull = Action => Observable[Action]
 
   implicit class toFullEffectHandler(handler: EffectHandler) {
-    val noEffect: EffectHandlerFull = _ => Observable.empty
+    private val noEffect: EffectHandlerFull = _ => Observable.empty
 
     def full: EffectHandlerFull = handler.applyOrElse(_, noEffect)
   }
@@ -87,9 +87,10 @@ object Styles {
 
   def subscribe(f: StyleSheet.Inline => Unit): Subscription = inner.subscribe(f)
 
-  trait Publisher { self : StyleSheet.Inline =>
+  trait Publisher { self: StyleSheet.Inline =>
     publish(self)
   }
+
 }
 
 
@@ -139,9 +140,7 @@ object LogArea extends Component {
     )
   }
 
-  object Style {
-    object default extends Style with Styles.Publisher
-  }
+  object DefaultStyle extends Style with Styles.Publisher
 
   case class Model(
     log: Seq[String] = Seq()
@@ -151,7 +150,7 @@ object LogArea extends Component {
     case (state, LogAction(line)) => modify(state)(_.log).using(_ :+ line)
   }
 
-  def apply(source: ModelObservable, stl: Style = Style.default): VNode = {
+  def apply(source: ModelObservable, stl: Style = DefaultStyle): VNode = {
     textarea(stl.textfield,
       child <-- source.map(_.log.mkString("\n"))
     )
@@ -184,12 +183,9 @@ object TextField {
     )
   }
 
-  object Style {
-    object default extends Style with Styles.Publisher
-  }
+  object DefaultStyle extends Style with Styles.Publisher
 
-
-  def apply(sink: Sink[String], stl: Style = Style.default): VNode = {
+  def apply(actions: Sink[String], stl: Style = DefaultStyle): VNode = {
 
     val inputTodo = createStringHandler()
 
@@ -205,12 +201,12 @@ object TextField {
         input(stl.textinput,
           inputString --> inputTodo,
           value <-- inputTodo,
-          enterdown(inputTodo) --> sink,
+          enterdown(inputTodo) --> actions,
           enterdown("") --> inputTodo
         )
       ),
       button(stl.button,
-        click(inputTodo) --> sink,
+        click(inputTodo) --> actions,
         click("") --> inputTodo,
         disabled <-- disabledValues,
         "Submit"
@@ -243,9 +239,9 @@ object TodoModule extends Component with Effects {
 
   override val effects: EffectHandler = {
     case AddTodo(s) =>
-      Observable.interval(Random.nextInt(1000)).take(1).mapTo(LogAction(s"Add action: $s"))
+      Observable.interval(Random.nextInt(500)).take(1).mapTo(LogAction(s"Add action: $s"))
     case RemoveTodo(todo) =>
-      Observable.interval(Random.nextInt(1000)).take(1).mapTo(LogAction(s"Remove action: ${todo.value}"))
+      Observable.interval(Random.nextInt(500)).take(1).mapTo(LogAction(s"Remove action: ${todo.value}"))
   }
 
 
@@ -267,26 +263,24 @@ object TodoModule extends Component with Effects {
     )
   }
 
-  object Style {
-    object default extends Style with Styles.Publisher
-  }
+  object DefaultStyle extends Style with Styles.Publisher
 
-  def todoComponent(todo: Todo, sink: ActionSink, stl: Style = Style.default): VNode = {
+  def todoItem(todo: Todo, actions: ActionSink, stl: Style = DefaultStyle): VNode = {
     li(
       span(todo.value),
       button( stl.button,
-        click(RemoveTodo(todo)) --> sink,
+        click(RemoveTodo(todo)) --> actions,
         "Delete"
       )
     )
   }
 
-  def apply(model: ModelObservable, sink: ActionSink): VNode = {
+  def apply(model: ModelObservable, actions: ActionSink): VNode = {
 
-    val stringSink = sink.redirect[String]{ item => item.map(AddTodo) }
+    val stringSink = actions.redirect[String]{ item => item.map(AddTodo) }
 
     val todoViews = model
-      .map(_.todos.map(todoComponent(_, sink)))
+      .map(_.todos.map(todoItem(_, actions)))
 
     div(
       TextField(stringSink),
@@ -306,29 +300,29 @@ object MainComponent extends Component with Effects {
     log: LogArea.Model = LogArea.Model()
   )
 
+  val lastActionReducer: Reducer = {
+    case (model, AddTodo(_)) => model.modify(_.lastAction).using(_ => "Add")
+    case (model, RemoveTodo(_)) => model.modify(_.lastAction).using(_ => "Remove")
+  }
+
   val reducer: Reducer = combineReducers(
-    {
-      case (model, AddTodo(_)) => model.modify(_.lastAction).using(_ => "Add")
-      case (model, RemoveTodo(_)) => model.modify(_.lastAction).using(_ => "Remove")
-    },
+    lastActionReducer,
     subReducer(TodoModule.reducer, modify(_)(_.todo)),
     subReducer(LogArea.reducer, modify(_)(_.log))
   )
-
-
 
   val effects: EffectHandler = combineEffects(
     TodoModule.effects
   )
 
-  def apply(model: ModelObservable, sink: ActionSink): VNode = {
+  def apply(model: ModelObservable, actions: ActionSink): VNode = {
     table(
       tbody(
         tr(
           td("Last action: ", child <-- model.map(_.lastAction))
         ),
         tr(
-          td(TodoModule(model.map(_.todo), sink))
+          td(TodoModule(model.map(_.todo), actions))
         ),
         tr(
           td(LogArea(model.map(_.log)))
@@ -343,26 +337,26 @@ object RootModule {
 
 
   private val initialState = MainComponent.Model()
-  private val sink = createHandler[Action]()
-  sink <-- sink.flatMap(MainComponent.effectsFull)
+  private val actions = createHandler[Action]()
+  actions <-- actions.flatMap(MainComponent.effectsFull)
 
 
 //  val t = MainComponent.reducer.full
 //  val s = MainComponent.effects.full
-  private val source = sink
+  private val model = actions
     .scan(initialState)(MainComponent.reducer.full)
     .startWith(initialState)
     .share
 
-  Styles.subscribe(_.addToDocument())
 
-  val root = MainComponent(source, sink)
+  val root = MainComponent(model, actions)
 }
 
 
 
 
 object TestApp extends JSApp {
+  Styles.subscribe(_.addToDocument())
 
   def main(): Unit = {
     OutWatch.render("#app", RootModule.root)
