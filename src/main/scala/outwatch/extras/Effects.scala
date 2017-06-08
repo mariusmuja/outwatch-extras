@@ -4,28 +4,26 @@ import rxscalajs.Observable
 
 
 object Effects {
-  type EffectHandler = PartialFunction[Action, Observable[Action]]
-  type EffectHandlerFull = Action => Observable[Action]
-
-  implicit class toFullEffectHandler(handler: EffectHandler) {
-    private val noEffect: EffectHandlerFull = _ => Observable.empty
-
-    def full: EffectHandlerFull = handler.applyOrElse(_, noEffect)
+  implicit class toFullHandler(handler: Effects.Handler) {
+    @inline def full: Effects.HandlerFull = handler.applyOrElse(_, noEffects)
   }
+
+  type Handler = PartialFunction[Action, Observable[Action]]
+  val noEffects: Effects.HandlerFull = _ => Observable.empty
+  val emptyHandler = PartialFunction.empty[Action, Observable[Action]]
+  type HandlerFull = Action => Observable[Action]
 }
 
 trait Effects {
-  import Effects._
-  type EffectHandler = Effects.EffectHandler
-  type EffectHandlerFull = Effects.EffectHandlerFull
+  import Effects.toFullHandler
 
-  val effects: EffectHandler
+  val effects: Effects.Handler = Effects.emptyHandler
 
-  def effectsFull: EffectHandlerFull = effects.full
+  @inline def effectsFull: Effects.HandlerFull = effects.full
 
-  protected def combineEffectsFirst(handlers: EffectHandler*): EffectHandler = handlers.reduce(_ orElse _)
+  protected def combineEffectsFirst(handlers: Effects.Handler*): Effects.Handler = handlers.reduce(_ orElse _)
 
-  protected def combineEffects(handlers: EffectHandler*): EffectHandler = {
+  protected def combineEffects(handlers: Effects.Handler*): Effects.Handler = {
     case a: Action => Observable.from(handlers).flatMap(_.full(a))
   }
 }

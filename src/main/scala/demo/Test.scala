@@ -1,9 +1,34 @@
 package demo
 
-/**
-  * Created by marius on 23/05/17.
-  */
-object Test {
-  val t = MainComponent.reducer.full
-//  val s = MainComponent.effects.full
+
+trait Bar {
+
+  type BaseType
+
+  implicit class Converter(t: BaseType) {
+    def convert: String = t.toString
+  }
+
+  val value: BaseType
+
+
 }
+
+
+
+
+object Foo extends Bar {
+  class Model2(str: String)
+
+  override type BaseType = Model2
+  override val value: BaseType = null
+}
+
+object Test {
+
+  val t = Foo.value.convert
+  //  val s = MainComponent.effects.full
+}
+
+
+

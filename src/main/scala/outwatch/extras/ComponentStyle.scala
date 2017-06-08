@@ -4,13 +4,12 @@ import outwatch.dom.{Attribute, cls}
 import rxscalajs.Subject
 import rxscalajs.subscription.Subscription
 
-import scalacss.DevDefaults.{StyleSheet, StyleA}
+import scalacss.DevDefaults.{StyleA, StyleSheet}
 
 /**
   * Created by marius on 23/05/17.
   */
-
-trait Style {
+trait ComponentStyle {
   type Style <: StyleSheet.Inline
 
   val defaultStyle: Style
@@ -23,7 +22,7 @@ object Styles {
 
   def subscribe(f: StyleSheet.Inline => Unit): Subscription = styles.subscribe(f)
 
-  trait Published { self: StyleSheet.Inline =>
+  trait Publish { self: StyleSheet.Inline =>
     publish(self)
   }
 }
