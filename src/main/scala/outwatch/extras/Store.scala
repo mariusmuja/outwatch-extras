@@ -13,7 +13,7 @@ final case class Store[State, Action](source: Observable[State], sink: Sink[Acti
 
   def subscribe(f: State => Unit): Subscription = source.subscribe(f)
 
-  def map[S](project: State => S): Store[S, Action] = Store(source.map(project), sink)
+  def map[S](project: State => S): Store[S, Action] = Store(source.distinct.map(project), sink)
 
   def share: Store[State, Action] = Store(source.share, sink)
 

@@ -4,26 +4,34 @@ import rxscalajs.Observable
 
 
 object Effects {
-  implicit class toFullHandler(handler: Effects.Handler) {
-    @inline def full: Effects.HandlerFull = handler.applyOrElse(_, noEffects)
-  }
+  type Handler[State] = PartialFunction[(State, Action), Observable[Action]]
+  type HandlerFull[State] = (State, Action) => Observable[Action]
 
-  type Handler = PartialFunction[Action, Observable[Action]]
-  val noEffects: Effects.HandlerFull = _ => Observable.empty
-  val emptyHandler = PartialFunction.empty[Action, Observable[Action]]
-  type HandlerFull = Action => Observable[Action]
+  def noEffects[State]: HandlerFull[State] = (_, _) => Observable.empty
 }
 
-trait Effects {
-  import Effects.toFullHandler
+trait Effects { self : Component =>
 
-  val effects: Effects.Handler = Effects.emptyHandler
+  type EffectsHandler = Effects.Handler[State]
+  type EffectsHandlerFull = Effects.HandlerFull[State]
 
-  @inline def effectsFull: Effects.HandlerFull = effects.full
+  implicit class toFullHandler(handler: EffectsHandler) {
+    val noEffects: EffectsHandlerFull = (_,_) => Observable.empty
+    @inline def full: EffectsHandlerFull = (s,a) => handler.applyOrElse((s,a), noEffects.tupled)
+  }
 
-  protected def combineEffectsFirst(handlers: Effects.Handler*): Effects.Handler = handlers.reduce(_ orElse _)
+  val emptyHandler = PartialFunction.empty[(State, Action), Observable[Action]]
+  val effects: EffectsHandler = emptyHandler
 
-  protected def combineEffects(handlers: Effects.Handler*): Effects.Handler = {
-    case a: Action => Observable.from(handlers).flatMap(_.full(a))
+  @inline def effectsFull: EffectsHandlerFull = effects.full
+
+  protected def combineEffectsFirst(handlers: EffectsHandler*): EffectsHandler = handlers.reduce(_ orElse _)
+
+  protected def combineEffects(handlers: EffectsHandler*): EffectsHandler = {
+    case (state, act) => Observable.from(handlers).flatMap(handler => handler.full(state, act))
+  }
+
+  protected def subEffectHandler[S, SS](handler: Effects.Handler[SS], zoom: S => SS): Effects.Handler[S] = {
+    case (s, a) => handler.applyOrElse((zoom(s), a), (_: (SS, Action)) => Observable.empty)
   }
 }

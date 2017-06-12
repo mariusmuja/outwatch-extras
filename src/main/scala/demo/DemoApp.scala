@@ -38,7 +38,7 @@ trait LogAreaStyle extends ComponentStyle {
 }
 
 
-object Logger extends Component with
+object Logger extends EffectsComponent with
                       LogAreaStyle {
   case class LogAction(action: String) extends Action
 
@@ -52,6 +52,12 @@ object Logger extends Component with
     case (state, LogAction(line)) =>
       console.log(s"Log $line")
       modify(state)(_.log).using(_ :+ s"$now : $line")
+  }
+
+  override val effects: EffectsHandler = {
+    case (_, TodoModule.AddTodo(s)) =>
+      console.log("Add todo effect")
+      Observable.empty
   }
 
   def apply(store: Store[State, Action], stl: Style = defaultStyle): VNode = {
@@ -165,26 +171,25 @@ object TodoModule extends Component with
   private def newID = Random.nextInt
 
   val reducer: Reducer = {
-    case (state, RemoveTodo(todo)) =>
-      modify(state)(_.todos).using(_.filter(_.id != todo.id))
     case (state, AddTodo(value)) =>
       modify(state)(_.todos).using(_ :+ Todo(newID, value))
+    case (state, RemoveTodo(todo)) =>
+      modify(state)(_.todos).using(_.filter(_.id != todo.id))
   }
 
   // simulate some async effects by logging actions with a delay
-  override val effects: Effects.Handler = {
-    case AddTodo(s) =>
-      Observable.interval(100).take(1)
-        .mapTo(LogAction(s"Add action: $s"))
-    case RemoveTodo(todo) =>
-      Observable.interval(100).take(1)
+  override val effects: EffectsHandler = {
+    case (state, AddTodo(s)) =>
+      Observable.interval(2000).take(1)
+        .mapTo(LogAction(s"Add ${if (state.todos.isEmpty) "first " else ""}action: $s"))
+    case (_, RemoveTodo(todo)) =>
+      Observable.interval(2000).take(1)
         .mapTo(LogAction(s"Remove action: ${todo.value}"))
   }
 
 
   private def todoItem(todo: Todo, actions: Sink[Action], stl: Style): VNode = {
     import outwatch.dom._
-
     li(
       span(todo.value),
       button(stl.button, stl.material, click(RemoveTodo(todo)) --> actions, "Delete")
@@ -230,9 +235,12 @@ object TodoComponent extends EffectsComponent {
     subReducer(Logger.reducer, modify(_)(_.log))
   )
 
-  override val effects: Effects.Handler = combineEffects(
-    TodoModule.effects
-  )
+  override val effects: EffectsHandler = {
+    combineEffects(
+      subEffectHandler(TodoModule.effects, _.todo),
+      subEffectHandler(Logger.effects, _.log)
+    )
+  }
 
   def apply(store: Store[State, Action]): VNode = {
     import outwatch.dom._
@@ -253,35 +261,65 @@ object TodoComponent extends EffectsComponent {
   }
 }
 
+case class Path(url: String)
+
+case class Rule[M](
+  parse: Path => Option[M],
+  create: M => VNode
+)
+
+case class PathParser(
+  rules: Seq[Rule[_]]
+)
 
 
 object Router {
 
   trait Page extends Action
 
-  case class Path(url: String)
-
   private val actionSink = Handlers.createHandler[Action]()
   private var effectsSub : Option[AnonymousSubscription] = None
-
 
   object TodoPage extends Page
 
   object LogPage extends Page
 
-  private def createNode[State](initialState: => State,
+  private def createNode[State](
+    initialState: => State,
     reducer: Component.ReducerFull[State],
     creator: Store[State, Action] => VNode,
-    effects: Effects.HandlerFull = Effects.noEffects): VNode = {
+    effects: Effects.HandlerFull[State]
+  ): VNode = {
 
-    val initState = initialState
+    val effectsWithPageChange: Effects.HandlerFull[State] = (s,a) => effects(s,a) merge pageChange(s,a)
+//
+//    val initState = initialState
+//    val source = actionSink
+//      .scan(initState)(reducer)
+//      .startWith(initState)
+//      .publishReplay(1)
+//      .refCount
+//
+//    effectsSub.foreach(_.unsubscribe())
+//    effectsSub = Option(
+//      actionSink <-- actionSink.withLatestFrom(source).flatMap{ case (a,s) => effectsWithPageChange(s,a)
+//      }
+//    )
+//    creator(Store(source, actionSink))
+
+
+    val initStateAndEffects = (initialState, Observable.just[Action]())
     val source = actionSink
-      .scan(initState)(reducer)
-      .startWith(initState)
-    effectsSub.foreach(_.unsubscribe())
-    effectsSub = Option(actionSink <-- actionSink.flatMap(a => effects(a).merge(pageChange(a))))
+      .scan(initStateAndEffects) { case ((s, _), a) =>
+        reducer(s, a) -> effectsWithPageChange(s, a)
+      }
+      .startWith(initStateAndEffects)
+      .publishReplay(1)
+      .refCount
 
-    creator(Store(source, actionSink).shareReplay())
+    effectsSub.foreach(_.unsubscribe())
+    effectsSub = Option(actionSink <-- source.flatMap(_._2))
+    creator(Store(source.map(_._1), actionSink))
   }
 
   def createNode(component: EffectsComponent)(
@@ -290,19 +328,19 @@ object Router {
   ): VNode = {
     createNode(initialState, component.reducerFull, creator, component.effectsFull)
   }
-
-  trait NodeCreator[C <: Component] {
-    val component: C
-    val initialState: component.State
-
-    def create(store: Store[component.State, Action]): VNode
-  }
+//
+//  trait NodeCreator[C <: Component] {
+//    val component: C
+//    val initialState: component.State
+//
+//    def create(store: Store[component.State, Action]): VNode
+//  }
 
   def createNode(component: Component)(
     initialState: component.State,
     creator: Store[component.State, Action] => VNode
   ): VNode = {
-    createNode(initialState, component.reducerFull, creator)
+    createNode[component.State](initialState, component.reducerFull, creator, Effects.noEffects)
   }
 
 
@@ -324,17 +362,16 @@ object Router {
     page match {
       case TodoPage =>
         createNode(TodoComponent)(TodoComponent.State(), TodoComponent(_))
-
       case LogPage =>
         createNode(Logger)(Logger.State(), Logger(_))
     }
   }
 
 
-  private def pageChange: Effects.HandlerFull = { action: Action =>
+  private def pageChange[S]: Effects.HandlerFull[S] = { (_, action) =>
     action match {
       case p: Page =>
-        dom.document.location.href = dom.document.location.href + pageToPath(p).url
+        dom.window.history.pushState("", "", pageToPath(p).url)
         Observable.empty
       case _ =>
         Observable.empty
@@ -357,7 +394,7 @@ object Router {
     .map(_ => Path(dom.document.location.href))
     .startWith(Path(dom.document.location.href))
 
-  val pages = location.map(pathToPage)
+  val pages = location.map(pathToPage).merge(actionSink.collect { case e: Page => e })
 
   def apply(): VNode = {
     import outwatch.dom._
