@@ -1,4 +1,4 @@
-enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)
+enablePlugins(ScalaJSBundlerPlugin)
 
 name := "Outwatchtest"
 
@@ -9,8 +9,6 @@ organization := "Your organization"
 scalaVersion := "2.11.11"
 
 jsEnv := PhantomJSEnv().value
-
-scalaJSModuleKind := ModuleKind.CommonJSModule
 
 libraryDependencies ++= 
   "io.github.outwatch" %%% "outwatch" % "0.10.0-SNAPSHOT" ::

@@ -323,6 +323,8 @@ object Router {
     case LogPage =>
       dom.document.location.href = (dom.document.location.href + "#log")
       Observable.empty
+    case _ =>
+      Observable.empty
   }
 
   def pageToNode(page: Page) : VNode = {
