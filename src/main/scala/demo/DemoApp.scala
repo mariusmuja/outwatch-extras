@@ -5,10 +5,10 @@ import demo.styles.MdlStyles
 import org.scalajs.dom
 import org.scalajs.dom.{Event, EventTarget, console}
 import outwatch.Sink
-import outwatch.dom.Handlers._
+import outwatch.dom.Handlers
 import outwatch.dom.{OutWatch, VNode}
-import outwatch.extras.StyleAdaptors._
 import outwatch.extras._
+import outwatch.styles.{ComponentStyle, Styles}
 import rxscalajs.Observable
 import rxscalajs.Observable.Creator
 import rxscalajs.subscription.AnonymousSubscription
@@ -19,25 +19,14 @@ import scala.util.Random
 import scalacss.DevDefaults._
 
 
-case class Store[M](model: Observable[M], actions: Sink[Action]) {
-
-  def map[R](project: M => R): Store[R] = Store(model.map(project), actions)
-}
-
-object Store {
-  import scala.language.implicitConversions
-  implicit def toSink[M](store: Store[M]): Sink[Action] = store.actions
-  implicit def toObservable[M](store: Store[M]): Observable[M] = store.model
-}
-
 trait LogAreaStyle extends ComponentStyle {
 
-  class Style extends StyleSheet.Inline {
+  class Style extends StyleSheet.Inline with MdlStyles {
 
     import dsl._
 
     val textfield = style(
-      MdlStyles.textfield,
+      mdl.textfield,
       height(400.px),
       width(400.px).important,
       fontFamily :=! "Courier New",
@@ -53,7 +42,7 @@ object Logger extends Component with
                       LogAreaStyle {
   case class LogAction(action: String) extends Action
 
-  case class Model(
+  case class State(
     log: Seq[String] = Seq("Log:")
   )
 
@@ -65,39 +54,37 @@ object Logger extends Component with
       modify(state)(_.log).using(_ :+ s"$now : $line")
   }
 
-  def view(model: Store[Model], stl: Style = defaultStyle): VNode = {
+  def apply(store: Store[State, Action], stl: Style = defaultStyle): VNode = {
     import outwatch.dom._
 
-    textarea(stl.textfield,
-      child <-- model.map(_.log.mkString("\n"))
+    textarea(stl.textfield, stl.material,
+      child <-- store.map(_.log.mkString("\n"))
     )
   }
-
-  def apply(model: Store[Model], stl: Style = defaultStyle): VNode = view(model, stl)
 }
 
 
 trait TextFieldStyle extends ComponentStyle {
 
-  class Style extends StyleSheet.Inline {
+  class Style extends StyleSheet.Inline with MdlStyles {
 
     import dsl._
 
     val textfield = style (
-      MdlStyles.textfield,
+      mdl.textfield,
       marginRight(8.px).important
     )
 
     val textinput = style (
-      MdlStyles.textinput
+      mdl.textinput
     )
 
     val textlabel = style (
-      MdlStyles.textlabel
+      mdl.textlabel
     )
 
     val button = style (
-      MdlStyles.button
+      mdl.button
     )
   }
 
@@ -118,7 +105,7 @@ object TextField extends TextFieldStyle {
     val enterdown = keydown.filter(_.keyCode == 13)
 
     div(
-      div(stl.textfield,
+      div(stl.textfield, stl.material,
         label(stl.textlabel, "Enter todo"),
         input(stl.textinput,
           inputString --> inputTodo,
@@ -127,7 +114,7 @@ object TextField extends TextFieldStyle {
           enterdown("") --> inputTodo
         )
       ),
-      button(stl.button,
+      button(stl.button, stl.material,
         click(inputTodo) --> actions,
         click("") --> inputTodo,
         disabled <-- disabledValues,
@@ -141,20 +128,20 @@ object TextField extends TextFieldStyle {
 
 trait TodoModuleStyle extends ComponentStyle {
 
-  class Style extends StyleSheet.Inline {
+  class Style extends StyleSheet.Inline with MdlStyles {
 
     import dsl._
 
     val textinput = style(
-      MdlStyles.textinput
+      mdl.textinput
     )
 
     val textlabel = style(
-      MdlStyles.textlabel
+      mdl.textlabel
     )
 
     val button = style(
-      MdlStyles.button,
+      mdl.button,
       marginLeft(8.px)
     )
   }
@@ -173,7 +160,7 @@ object TodoModule extends Component with
   case class RemoveTodo(todo: Todo) extends Action
 
   case class Todo(id: Int, value: String)
-  case class Model(todos: Seq[Todo] = Seq.empty)
+  case class State(todos: Seq[Todo] = Seq.empty)
 
   private def newID = Random.nextInt
 
@@ -200,20 +187,20 @@ object TodoModule extends Component with
 
     li(
       span(todo.value),
-      button(stl.button, click(RemoveTodo(todo)) --> actions, "Delete")
+      button(stl.button, stl.material, click(RemoveTodo(todo)) --> actions, "Delete")
     )
   }
 
-  def apply(store: Store[Model], stl: Style = defaultStyle): VNode = {
+  def apply(store: Store[State, Action], stl: Style = defaultStyle): VNode = {
     import outwatch.dom._
 
     val stringSink = store.redirect[String] { item => item.map(AddTodo) }
 
-    val todoViews = store.map(_.todos.map(todoItem(_, store.actions, stl)))
+    val todoViews = store.map(_.todos.map(todoItem(_, store, stl)))
 
     div(
       TextField(stringSink),
-      button(stl.button,
+      button(stl.button, stl.material,
         click(Router.LogPage) --> store,
         "Log only"
       ),
@@ -226,15 +213,15 @@ object TodoModule extends Component with
 object TodoComponent extends EffectsComponent {
   import TodoModule.{AddTodo, RemoveTodo}
 
-  case class Model(
+  case class State(
     lastAction: String = "None",
-    todo: TodoModule.Model = TodoModule.Model(),
-    log: Logger.Model = Logger.Model()
+    todo: TodoModule.State = TodoModule.State(),
+    log: Logger.State = Logger.State()
   )
 
   private val lastActionReducer: Reducer = {
-    case (model, AddTodo(_)) => model.modify(_.lastAction).setTo("Add")
-    case (model, RemoveTodo(_)) => model.modify(_.lastAction).setTo("Remove")
+    case (state, AddTodo(_)) => state.modify(_.lastAction).setTo("Add")
+    case (state, RemoveTodo(_)) => state.modify(_.lastAction).setTo("Remove")
   }
 
   val reducer: Reducer = combineReducers(
@@ -247,7 +234,7 @@ object TodoComponent extends EffectsComponent {
     TodoModule.effects
   )
 
-  def apply(store: Store[Model]): VNode = {
+  def apply(store: Store[State, Action]): VNode = {
     import outwatch.dom._
 
     table(
@@ -270,13 +257,11 @@ object TodoComponent extends EffectsComponent {
 
 object Router {
 
-  trait Page extends Action {
-    def unapply(path: Path): Boolean = if (path.url == "/todo") true else false
-  }
+  trait Page extends Action
 
   case class Path(url: String)
 
-  private val actions = createHandler[Action]()
+  private val actionSink = Handlers.createHandler[Action]()
   private var effectsSub : Option[AnonymousSubscription] = None
 
 
@@ -284,60 +269,79 @@ object Router {
 
   object LogPage extends Page
 
-  def createNode[M](initialState: => M,
-    reducer: Component.ReducerFull[M],
-    create: Store[M] => VNode,
+  private def createNode[State](initialState: => State,
+    reducer: Component.ReducerFull[State],
+    creator: Store[State, Action] => VNode,
     effects: Effects.HandlerFull = Effects.noEffects): VNode = {
 
     val initState = initialState
-    val model = actions
+    val source = actionSink
       .scan(initState)(reducer)
       .startWith(initState)
-      .publishReplay(1)
-      .refCount
     effectsSub.foreach(_.unsubscribe())
-    effectsSub = Option(actions <-- actions.flatMap(a => effects(a).merge(pageChange(a))))
+    effectsSub = Option(actionSink <-- actionSink.flatMap(a => effects(a).merge(pageChange(a))))
 
-    create(Store(model, actions))
+    creator(Store(source, actionSink).shareReplay())
   }
 
   def createNode(component: EffectsComponent)(
-    initialState: component.Model,
-    creator: Store[component.Model] => VNode
+    initialState: component.State,
+    creator: Store[component.State, Action] => VNode
   ): VNode = {
     createNode(initialState, component.reducerFull, creator, component.effectsFull)
   }
 
+  trait NodeCreator[C <: Component] {
+    val component: C
+    val initialState: component.State
+
+    def create(store: Store[component.State, Action]): VNode
+  }
+
   def createNode(component: Component)(
-    initialState: component.Model,
-    creator: Store[component.Model] => VNode
+    initialState: component.State,
+    creator: Store[component.State, Action] => VNode
   ): VNode = {
     createNode(initialState, component.reducerFull, creator)
   }
 
 
-  def pageChange: Effects.Handler = {
-    case TodoPage =>
-      dom.document.location.href = (dom.document.location.href + "#todo")
-      Observable.empty
-    case LogPage =>
-      dom.document.location.href = (dom.document.location.href + "#log")
-      Observable.empty
-    case _ =>
-      Observable.empty
+  def pathToPage(path: Path): Page = {
+    if (path.url.endsWith("log")) LogPage
+    else TodoPage
+  }
+
+  def pageToPath(page: Page): Path = {
+    page match {
+      case TodoPage =>
+        Path("#todo")
+      case LogPage =>
+        Path("#log")
+    }
   }
 
   def pageToNode(page: Page) : VNode = {
     page match {
       case TodoPage =>
-        createNode(TodoComponent)(TodoComponent.Model(), TodoComponent(_))
+        createNode(TodoComponent)(TodoComponent.State(), TodoComponent(_))
 
       case LogPage =>
-        createNode(Logger)(Logger.Model(), Logger(_))
+        createNode(Logger)(Logger.State(), Logger(_))
     }
   }
 
-  def eventListener(target: EventTarget, event: String): Observable[Event] =
+
+  private def pageChange: Effects.HandlerFull = { action: Action =>
+    action match {
+      case p: Page =>
+        dom.document.location.href = dom.document.location.href + pageToPath(p).url
+        Observable.empty
+      case _ =>
+        Observable.empty
+    }
+  }
+
+  private def eventListener(target: EventTarget, event: String): Observable[Event] =
     Observable.create { subscriber =>
       val eventHandler: js.Function1[Event, Unit] = (e: Event) => subscriber.next(e)
       target.addEventListener(event, eventHandler)
@@ -349,24 +353,15 @@ object Router {
     }
 
 
-  val location = eventListener(dom.window, "popstate").map(_ =>
-    dom.document.location.href
-  ).startWith(dom.document.location.href)
+  val location = eventListener(dom.window, "popstate")
+    .map(_ => Path(dom.document.location.href))
+    .startWith(Path(dom.document.location.href))
 
-  val pages = location.map { href =>
-    if (href.endsWith("todo")) TodoPage
-    else LogPage
-  }
-
+  val pages = location.map(pathToPage)
 
   def apply(): VNode = {
     import outwatch.dom._
-
-
-
-    val view = pages.map(pageToNode)
-
-    div(child <-- view)
+    div(child <-- pages.map(pageToNode))
   }
 
 }
