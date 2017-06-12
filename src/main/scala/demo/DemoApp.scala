@@ -38,7 +38,7 @@ trait LogAreaStyle extends ComponentStyle {
 }
 
 
-object Logger extends EffectsComponent with
+object Logger extends Component with
                       LogAreaStyle {
   case class LogAction(action: String) extends Action
 
@@ -157,7 +157,6 @@ trait TodoModuleStyle extends ComponentStyle {
 
 
 object TodoModule extends Component with
-                          Effects with
                           TodoModuleStyle {
 
   import Logger.LogAction
@@ -215,7 +214,7 @@ object TodoModule extends Component with
 
 }
 
-object TodoComponent extends EffectsComponent {
+object TodoComponent extends Component {
   import TodoModule.{AddTodo, RemoveTodo}
 
   case class State(
@@ -225,8 +224,8 @@ object TodoComponent extends EffectsComponent {
   )
 
   private val lastActionReducer: Reducer = {
-    case (state, AddTodo(_)) => state.modify(_.lastAction).setTo("Add")
-    case (state, RemoveTodo(_)) => state.modify(_.lastAction).setTo("Remove")
+    case (state, AddTodo(value)) => state.modify(_.lastAction).setTo(s"Add $value")
+    case (state, RemoveTodo(todo)) => state.modify(_.lastAction).setTo(s"Remove ${todo.value}")
   }
 
   val reducer: Reducer = combineReducers(
@@ -276,18 +275,17 @@ case class PathParser(
 object Router {
 
   trait Page extends Action
+  object TodoPage extends Page
+  object LogPage extends Page
+
 
   private val actionSink = Handlers.createHandler[Action]()
   private var effectsSub : Option[AnonymousSubscription] = None
 
-  object TodoPage extends Page
-
-  object LogPage extends Page
-
   private def createNode[State](
     initialState: => State,
     reducer: Component.ReducerFull[State],
-    creator: Store[State, Action] => VNode,
+    view: Store[State, Action] => VNode,
     effects: Effects.HandlerFull[State]
   ): VNode = {
 
@@ -305,7 +303,7 @@ object Router {
 //      actionSink <-- actionSink.withLatestFrom(source).flatMap{ case (a,s) => effectsWithPageChange(s,a)
 //      }
 //    )
-//    creator(Store(source, actionSink))
+//    view(Store(source, actionSink))
 
 
     val initStateAndEffects = (initialState, Observable.just[Action]())
@@ -319,10 +317,10 @@ object Router {
 
     effectsSub.foreach(_.unsubscribe())
     effectsSub = Option(actionSink <-- source.flatMap(_._2))
-    creator(Store(source.map(_._1), actionSink))
+    view(Store(source.map(_._1), actionSink))
   }
 
-  def createNode(component: EffectsComponent)(
+  def createNode(component: Component)(
     initialState: component.State,
     creator: Store[component.State, Action] => VNode
   ): VNode = {
@@ -335,13 +333,6 @@ object Router {
 //
 //    def create(store: Store[component.State, Action]): VNode
 //  }
-
-  def createNode(component: Component)(
-    initialState: component.State,
-    creator: Store[component.State, Action] => VNode
-  ): VNode = {
-    createNode[component.State](initialState, component.reducerFull, creator, Effects.noEffects)
-  }
 
 
   def pathToPage(path: Path): Page = {

@@ -15,7 +15,7 @@ object Component {
 }
 
 
-trait Component {
+trait PureComponent {
 
   type State
 
@@ -42,4 +42,4 @@ trait Component {
   }
 }
 
-trait EffectsComponent extends Component with Effects
+trait Component extends PureComponent with Effects

@@ -11,17 +11,16 @@ object Effects {
 }
 
 trait Effects { self : Component =>
-
   type EffectsHandler = Effects.Handler[State]
   type EffectsHandlerFull = Effects.HandlerFull[State]
 
-  implicit class toFullHandler(handler: EffectsHandler) {
+
+  val effects: EffectsHandler
+
+  private implicit class toFullHandler(handler: EffectsHandler) {
     val noEffects: EffectsHandlerFull = (_,_) => Observable.empty
     @inline def full: EffectsHandlerFull = (s,a) => handler.applyOrElse((s,a), noEffects.tupled)
   }
-
-  val emptyHandler = PartialFunction.empty[(State, Action), Observable[Action]]
-  val effects: EffectsHandler = emptyHandler
 
   @inline def effectsFull: EffectsHandlerFull = effects.full
 
@@ -34,4 +33,8 @@ trait Effects { self : Component =>
   protected def subEffectHandler[S, SS](handler: Effects.Handler[SS], zoom: S => SS): Effects.Handler[S] = {
     case (s, a) => handler.applyOrElse((zoom(s), a), (_: (SS, Action)) => Observable.empty)
   }
+}
+
+trait NoEffects { self : Effects =>
+  override val effects: EffectsHandler = PartialFunction.empty
 }
