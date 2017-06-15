@@ -1,6 +1,7 @@
 package demo.styles
 
 import outwatch.styles.{ComponentStyle, Styles}
+import scalacss.DevDefaults._
 
 
 trait LogAreaStyle extends ComponentStyle {

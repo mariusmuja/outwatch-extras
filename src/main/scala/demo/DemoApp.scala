@@ -7,6 +7,7 @@ import org.scalajs.dom.{Event, EventTarget, console}
 import outwatch.Sink
 import outwatch.dom.{Handlers, OutWatch, VNode}
 import outwatch.extras._
+import outwatch.extras.router.{Path, PathParser}
 import outwatch.styles.Styles
 import rxscalajs.Observable
 import rxscalajs.Observable.Creator
@@ -247,19 +248,13 @@ object Router {
   ): VNode = {
     createNode(initialState, component.reducerFull, creator, component.effectsFull)
   }
-//
-//  trait NodeCreator[C <: Component] {
-//    val component: C
-//    val initialState: component.State
-//
-//    def create(store: Store[component.State, Action]): VNode
-//  }
 
   import outwatch.dom._
 
   trait Page extends Action
-  case class TodoPage(num: Int) extends Page
+  object TodoPage extends Page
   case class LogPage(last: Int) extends Page
+
 
   final case class Rule[Page, Target](
     parse: Path => Option[Page],
@@ -269,14 +264,23 @@ object Router {
 
   class RouterConfig[Page, Target](
     rules: Seq[Rule[Page, Target]],
-    notFound: (Page, Target)
+    notFound: Page
   ) {
 
-    def parse(path: Path): Page = rules.find(_.parse(path).isDefined).flatMap(_.parse(path)).getOrElse(notFound._1)
-    def path(page: Page): Path = rules.find(_.path(page).isDefined).flatMap(_.path(page)).getOrElse(path(notFound._1))
-    def target(page: Page): Target = rules.find(_.target(page).isDefined).flatMap(_.target(page)).getOrElse(notFound._2)
+    private def findFirst[T,R](list: List[T => Option[R]])(arg: T): Option[R] = {
+      list match {
+        case Nil => None
+        case head :: tail =>
+          val res = head(arg)
+          if (res.isDefined) res else findFirst(tail)(arg)
+      }
+    }
 
+    def parse(path: Path): Page = findFirst(rules.map(_.parse).toList)(path).getOrElse(notFound)
 
+    def path(page: Page): Path = findFirst(rules.map(_.path).toList)(page).getOrElse(path(notFound))
+
+    def target(page: Page): Target = findFirst(rules.map(_.target).toList)(page).getOrElse(target(notFound))
   }
 
   object RouterConfig {
@@ -302,10 +306,9 @@ object Router {
         )
       }
 
+      def rules(r: Rule[Page, Target]*): RouterConfigBuilder[Page, Target] = this.copy(rules = r)
 
-      def rules(r: Rule[Page, Target]*) = this.copy(rules = r)
-
-      def notFound(t: (Page,Target)) = new RouterConfig[Page, Target](rules, t)
+      def notFound(page: Page) = new RouterConfig[Page, Target](rules, page)
     }
 
     def apply[Page, Target] (builder: RouterConfigBuilder[Page, Target] => RouterConfig[Page, Target]) =
@@ -318,10 +321,10 @@ object Router {
     import cfg._
 
     cfg.rules(
-      ("log" / int).xmap(LogPage.apply)(LogPage.unapply(_).get) ~> (p => createNode(Logger)(Logger.State(Seq(s"${p.last }")), Logger(_))),
-      ("todo" / int).xmap(TodoPage.apply)(TodoPage.unapply(_).get) ~> createNode(TodoComponent)(TodoComponent.State(), TodoComponent(_))
+      ("log" / int).caseClass[LogPage] ~> (p => createNode(Logger)(Logger.State(Seq(s"${p.last }")), Logger(_))),
+      "todo".const(TodoPage) ~> createNode(TodoComponent)(TodoComponent.State(), TodoComponent(_))
     )
-      .notFound(TodoPage(1) -> div("Not found"))
+      .notFound(TodoPage)
   }
 
 
