@@ -11,7 +11,6 @@ import com.softwaremill.quicklens.PathModify
 object Component {
   type Reducer[State] = PartialFunction[(State, Action), State]
   type ReducerFull[State] = (State, Action) =>  State
-
 }
 
 
@@ -37,8 +36,8 @@ trait PureComponent {
     case (state, act) => reducers.foldLeft(state)((s, reducer) => reducer.full(s, act))
   }
 
-  protected def subReducer[S, SS](reducer: Component.Reducer[SS], modifyState: S => PathModify[S, SS]): Component.Reducer[S] = {
-    case (s, a) => modifyState(s).using(reducer.full(_, a))
+  protected def subReducer[S, SS](reducer: Component.Reducer[SS], modify: S => PathModify[S, SS]): Component.Reducer[S] = {
+    case (s, a) => modify(s).using(ss => reducer.full(ss, a))
   }
 }
 

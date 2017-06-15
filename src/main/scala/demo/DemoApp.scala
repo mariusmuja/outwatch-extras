@@ -1,41 +1,23 @@
 package demo
 
 import com.softwaremill.quicklens._
-import demo.styles.MdlStyles
+import demo.styles._
 import org.scalajs.dom
 import org.scalajs.dom.{Event, EventTarget, console}
 import outwatch.Sink
-import outwatch.dom.Handlers
-import outwatch.dom.{OutWatch, VNode}
+import outwatch.dom.{Handlers, OutWatch, VNode}
 import outwatch.extras._
-import outwatch.styles.{ComponentStyle, Styles}
+import outwatch.styles.Styles
 import rxscalajs.Observable
 import rxscalajs.Observable.Creator
 import rxscalajs.subscription.AnonymousSubscription
 
+import scala.reflect.ClassTag
 import scala.scalajs.js
 import scala.scalajs.js.{Date, JSApp}
 import scala.util.Random
 import scalacss.DevDefaults._
 
-
-trait LogAreaStyle extends ComponentStyle {
-
-  class Style extends StyleSheet.Inline with MdlStyles {
-
-    import dsl._
-
-    val textfield = style(
-      mdl.textfield,
-      height(400.px),
-      width(400.px).important,
-      fontFamily :=! "Courier New",
-      fontSize(14.px).important
-    )
-  }
-
-  object defaultStyle extends Style with Styles.Publish
-}
 
 
 object Logger extends Component with
@@ -69,46 +51,26 @@ object Logger extends Component with
   }
 }
 
-
-trait TextFieldStyle extends ComponentStyle {
-
-  class Style extends StyleSheet.Inline with MdlStyles {
-
-    import dsl._
-
-    val textfield = style (
-      mdl.textfield,
-      marginRight(8.px).important
-    )
-
-    val textinput = style (
-      mdl.textinput
-    )
-
-    val textlabel = style (
-      mdl.textlabel
-    )
-
-    val button = style (
-      mdl.button
-    )
-  }
-
-  object defaultStyle extends Style with Styles.Publish
-}
-
 object TextField extends TextFieldStyle {
 
-  def apply(actions: Sink[String], stl: Style = defaultStyle): VNode = {
+  def apply(actions: Sink[String], minLen : Int = 4, stl: Style = defaultStyle): VNode = {
     import outwatch.dom._
 
     val inputTodo = createStringHandler()
 
     val disabledValues = inputTodo
-      .map(_.length < 4)
+      .map(_.length < minLen)
       .startWith(true)
 
-    val enterdown = keydown.filter(_.keyCode == 13)
+    val filterSinkDisabled = (act: Observable[String]) =>
+      act.withLatestFrom(disabledValues)
+        .filter(x => !x._2)
+        .map(_._1)
+
+    val filteredActions = actions.redirect(filterSinkDisabled)
+    val inputTodoFiltered = inputTodo.redirect(filterSinkDisabled)
+
+    val enterdown = keydown.filter(k => k.keyCode == 13)
 
     div(
       div(stl.textfield, stl.material,
@@ -116,43 +78,19 @@ object TextField extends TextFieldStyle {
         input(stl.textinput,
           inputString --> inputTodo,
           value <-- inputTodo,
-          enterdown(inputTodo) --> actions,
-          enterdown("") --> inputTodo
+          enterdown(inputTodo) --> filteredActions,
+          enterdown("") --> inputTodoFiltered
         )
       ),
       button(stl.button, stl.material,
-        click(inputTodo) --> actions,
-        click("") --> inputTodo,
+        click(inputTodo) --> filteredActions,
+        click("") --> inputTodoFiltered,
         disabled <-- disabledValues,
         "Submit"
       )
     )
   }
 
-}
-
-
-trait TodoModuleStyle extends ComponentStyle {
-
-  class Style extends StyleSheet.Inline with MdlStyles {
-
-    import dsl._
-
-    val textinput = style(
-      mdl.textinput
-    )
-
-    val textlabel = style(
-      mdl.textlabel
-    )
-
-    val button = style(
-      mdl.button,
-      marginLeft(8.px)
-    )
-  }
-
-  object defaultStyle extends Style with Styles.Publish
 }
 
 
@@ -205,13 +143,12 @@ object TodoModule extends Component with
     div(
       TextField(stringSink),
       button(stl.button, stl.material,
-        click(Router.LogPage) --> store,
+        click(Router.LogPage(10)) --> store,
         "Log only"
       ),
       ul(children <-- todoViews)
     )
   }
-
 }
 
 object TodoComponent extends Component {
@@ -234,12 +171,11 @@ object TodoComponent extends Component {
     subReducer(Logger.reducer, modify(_)(_.log))
   )
 
-  override val effects: EffectsHandler = {
-    combineEffects(
-      subEffectHandler(TodoModule.effects, _.todo),
-      subEffectHandler(Logger.effects, _.log)
-    )
-  }
+  override val effects: EffectsHandler = combineEffects(
+    subEffectHandler(TodoModule.effects, _.todo),
+    subEffectHandler(Logger.effects, _.log)
+  )
+
 
   def apply(store: Store[State, Action]): VNode = {
     import outwatch.dom._
@@ -260,24 +196,9 @@ object TodoComponent extends Component {
   }
 }
 
-case class Path(url: String)
-
-case class Rule[M](
-  parse: Path => Option[M],
-  create: M => VNode
-)
-
-case class PathParser(
-  rules: Seq[Rule[_]]
-)
 
 
 object Router {
-
-  trait Page extends Action
-  object TodoPage extends Page
-  object LogPage extends Page
-
 
   private val actionSink = Handlers.createHandler[Action]()
   private var effectsSub : Option[AnonymousSubscription] = None
@@ -309,7 +230,7 @@ object Router {
     val initStateAndEffects = (initialState, Observable.just[Action]())
     val source = actionSink
       .scan(initStateAndEffects) { case ((s, _), a) =>
-        reducer(s, a) -> effectsWithPageChange(s, a)
+        (reducer(s, a), effectsWithPageChange(s, a))
       }
       .startWith(initStateAndEffects)
       .publishReplay(1)
@@ -334,35 +255,108 @@ object Router {
 //    def create(store: Store[component.State, Action]): VNode
 //  }
 
+  import outwatch.dom._
+
+  trait Page extends Action
+  case class TodoPage(num: Int) extends Page
+  case class LogPage(last: Int) extends Page
+
+  final case class Rule[Page, Target](
+    parse: Path => Option[Page],
+    path: Page => Option[Path],
+    target: Page => Option[Target]
+  )
+
+  class RouterConfig[Page, Target](
+    rules: Seq[Rule[Page, Target]],
+    notFound: (Page, Target)
+  ) {
+
+    def parse(path: Path): Page = rules.find(_.parse(path).isDefined).flatMap(_.parse(path)).getOrElse(notFound._1)
+    def path(page: Page): Path = rules.find(_.path(page).isDefined).flatMap(_.path(page)).getOrElse(path(notFound._1))
+    def target(page: Page): Target = rules.find(_.target(page).isDefined).flatMap(_.target(page)).getOrElse(notFound._2)
+
+
+  }
+
+  object RouterConfig {
+
+    case class RouterConfigBuilder[Page, Target](
+      rules: Seq[Rule[Page, Target]]
+    ) extends PathParser {
+
+      implicit class route[P <: Page](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
+
+        val route = rf.route
+
+        def ~>(f: P => Target) : Rule[Page, Target] = Rule(
+          route.parse,
+          p => ct.unapply(p).map(route.pathFor),
+          p => ct.unapply(p).map(f)
+        )
+
+        def ~>(f: => Target) : Rule[Page, Target] = Rule(
+          route.parse,
+          p => ct.unapply(p).map(route.pathFor),
+          p => ct.unapply(p).map(p => f)
+        )
+      }
+
+
+      def rules(r: Rule[Page, Target]*) = this.copy(rules = r)
+
+      def notFound(t: (Page,Target)) = new RouterConfig[Page, Target](rules, t)
+    }
+
+    def apply[Page, Target] (builder: RouterConfigBuilder[Page, Target] => RouterConfig[Page, Target]) =
+      builder(RouterConfigBuilder[Page, Target](Seq.empty))
+  }
+
+
+  val config = RouterConfig[Page, VNode] { cfg =>
+
+    import cfg._
+
+    cfg.rules(
+      ("log" / int).xmap(LogPage.apply)(LogPage.unapply(_).get) ~> (p => createNode(Logger)(Logger.State(Seq(s"${p.last }")), Logger(_))),
+      ("todo" / int).xmap(TodoPage.apply)(TodoPage.unapply(_).get) ~> createNode(TodoComponent)(TodoComponent.State(), TodoComponent(_))
+    )
+      .notFound(TodoPage(1) -> div("Not found"))
+  }
+
+
+
+
 
   def pathToPage(path: Path): Page = {
-    if (path.url.endsWith("log")) LogPage
-    else TodoPage
+    val rest = path.map { str =>
+      val index = str.indexOf("#")
+      str.substring(index+1)
+    }
+    config.parse(rest)
   }
 
   def pageToPath(page: Page): Path = {
-    page match {
-      case TodoPage =>
-        Path("#todo")
-      case LogPage =>
-        Path("#log")
-    }
+    val path = config.path(page)
+
+    val str = dom.document.location.href
+    val index = str.indexOf("#")
+    val prefix = str.substring(0, index + 1)
+
+    val result = Path(prefix) + path
+    console.log(""+result.value)
+    result
   }
 
   def pageToNode(page: Page) : VNode = {
-    page match {
-      case TodoPage =>
-        createNode(TodoComponent)(TodoComponent.State(), TodoComponent(_))
-      case LogPage =>
-        createNode(Logger)(Logger.State(), Logger(_))
-    }
+    config.target(page)
   }
 
 
   private def pageChange[S]: Effects.HandlerFull[S] = { (_, action) =>
     action match {
       case p: Page =>
-        dom.window.history.pushState("", "", pageToPath(p).url)
+        dom.window.history.pushState("", "", pageToPath(p).value)
         Observable.empty
       case _ =>
         Observable.empty
@@ -385,7 +379,7 @@ object Router {
     .map(_ => Path(dom.document.location.href))
     .startWith(Path(dom.document.location.href))
 
-  val pages = location.map(pathToPage).merge(actionSink.collect { case e: Page => e })
+  val pages = location.map(pathToPage) merge actionSink.collect { case e: Page => e }
 
   def apply(): VNode = {
     import outwatch.dom._
