@@ -1,6 +1,5 @@
 package demo
 
-import com.softwaremill.quicklens._
 import demo.styles._
 import org.scalajs.dom
 import org.scalajs.dom.{Event, EventTarget, console}
@@ -25,16 +24,16 @@ object Logger extends Component with
                       LogAreaStyle {
   case class LogAction(action: String) extends Action
 
-  case class State(
-    log: Seq[String] = Seq("Log:")
-  )
-
   private def now = (new Date).toLocaleString()
 
-  val reducer: Reducer = {
-    case (state, LogAction(line)) =>
-      console.log(s"Log $line")
-      modify(state)(_.log).using(_ :+ s"$now : $line")
+  case class State(
+    log: Seq[String] = Seq("Log:")
+  ) extends EvolvableState {
+    def evolve = {
+      case LogAction(line) =>
+        console.log(s"Log $line")
+        copy(log :+ s"$now : $line")
+    }
   }
 
   override val effects: EffectsHandler = {
@@ -43,12 +42,19 @@ object Logger extends Component with
       Observable.empty
   }
 
-  def apply(store: Store[State, Action], stl: Style = defaultStyle): VNode = {
+
+  def view(store: Store[State, Action],  stl: Style = defaultStyle): VNode = {
     import outwatch.dom._
 
     textarea(stl.textfield, stl.material,
       child <-- store.map(_.log.mkString("\n"))
     )
+  }
+
+
+  def apply(handler: Handler[Action], stl: Style = defaultStyle): VNode = {
+    val store = Store(handler, State(), reducerFull).share
+    view(store)
   }
 }
 
@@ -103,16 +109,19 @@ object TodoModule extends Component with
   case class AddTodo(value: String) extends Action
   case class RemoveTodo(todo: Todo) extends Action
 
-  case class Todo(id: Int, value: String)
-  case class State(todos: Seq[Todo] = Seq.empty)
 
   private def newID = Random.nextInt
 
-  val reducer: Reducer = {
-    case (state, AddTodo(value)) =>
-      modify(state)(_.todos).using(_ :+ Todo(newID, value))
-    case (state, RemoveTodo(todo)) =>
-      modify(state)(_.todos).using(_.filter(_.id != todo.id))
+
+  case class Todo(id: Int, value: String)
+
+  case class State(todos: Seq[Todo] = Seq.empty) extends EvolvableState {
+    def evolve = {
+      case AddTodo(value) =>
+        copy(todos = todos :+ Todo(newID, value))
+      case RemoveTodo(todo) =>
+        copy(todos = todos.filter(_.id != todo.id))
+    }
   }
 
   // simulate some async effects by logging actions with a delay
@@ -134,7 +143,7 @@ object TodoModule extends Component with
     )
   }
 
-  def apply(store: Store[State, Action], stl: Style = defaultStyle): VNode = {
+  def view(store: Store[State, Action], stl: Style = defaultStyle): VNode = {
     import outwatch.dom._
 
     val stringSink = store.redirect[String] { item => item.map(AddTodo) }
@@ -144,41 +153,31 @@ object TodoModule extends Component with
     div(
       TextField(stringSink),
       button(stl.button, stl.material,
-        click(Router.LogPage(10)) --> store,
-        "Log only"
+        click(Router.LogPage(10)) --> store, "Log only"
       ),
       ul(children <-- todoViews)
     )
   }
+
+  def apply(handler: Handler[Action]): VNode = {
+    val store = Store(handler, State(), reducerFull).share
+    view(store)
+  }
 }
 
-object TodoComponent extends Component {
+object TodoComponent extends Component with NoEffects {
   import TodoModule.{AddTodo, RemoveTodo}
 
   case class State(
-    lastAction: String = "None",
-    todo: TodoModule.State = TodoModule.State(),
-    log: Logger.State = Logger.State()
-  )
-
-  private val lastActionReducer: Reducer = {
-    case (state, AddTodo(value)) => state.modify(_.lastAction).setTo(s"Add $value")
-    case (state, RemoveTodo(todo)) => state.modify(_.lastAction).setTo(s"Remove ${todo.value}")
+    lastAction: String = "None"
+  ) extends EvolvableState {
+    def evolve = {
+      case AddTodo(value) => copy(lastAction = s"Add $value")
+      case RemoveTodo(todo) => copy(lastAction = s"Remove ${todo.value }")
+    }
   }
 
-  val reducer: Reducer = combineReducers(
-    lastActionReducer,
-    subReducer(TodoModule.reducer, modify(_)(_.todo)),
-    subReducer(Logger.reducer, modify(_)(_.log))
-  )
-
-  override val effects: EffectsHandler = combineEffects(
-    subEffectHandler(TodoModule.effects, _.todo),
-    subEffectHandler(Logger.effects, _.log)
-  )
-
-
-  def apply(store: Store[State, Action]): VNode = {
+  def view(store: Store[State, Action]): VNode = {
     import outwatch.dom._
 
     table(
@@ -187,14 +186,20 @@ object TodoComponent extends Component {
           td("Last action: ", child <-- store.map(_.lastAction))
         ),
         tr(
-          td(TodoModule(store.map(_.todo)))
+          td(TodoModule(store.handler))
         ),
         tr(
-          td(Logger(store.map(_.log)))
+          td(Logger(store.handler))
         )
       )
     )
   }
+
+  def apply(handler: Handler[Action]): VNode = {
+    val store = Store(handler, State(), reducerFull).share
+    view(store)
+  }
+
 }
 
 
@@ -241,15 +246,6 @@ object Router {
     effectsSub = Option(actionSink <-- source.flatMap(_._2))
     view(Store(source.map(_._1), actionSink))
   }
-
-  def createNode(component: Component)(
-    initialState: component.State,
-    creator: Store[component.State, Action] => VNode
-  ): VNode = {
-    createNode(initialState, component.reducerFull, creator, component.effectsFull)
-  }
-
-  import outwatch.dom._
 
   trait Page extends Action
   object TodoPage extends Page
@@ -339,8 +335,8 @@ object Router {
     import cfg._
 
     cfg.rules(
-      ("log" / int).caseClass[LogPage] ~> (p => createNode(Logger)(Logger.State(Seq(s"${p.last }")), Logger(_))),
-      "todo".const(TodoPage) ~> createNode(TodoComponent)(TodoComponent.State(), TodoComponent(_))
+      ("log" / int).xmap(LogPage)(LogPage.unapply(_).head) ~> (p => Logger(actionSink)),
+      "todo".const(TodoPage) ~> TodoComponent(actionSink)
     )
       .notFound(Right(TodoPage))
   }

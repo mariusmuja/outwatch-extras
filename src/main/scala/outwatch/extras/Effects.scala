@@ -15,7 +15,7 @@ trait Effects { self : Component =>
   type EffectsHandlerFull = Effects.HandlerFull[State]
 
 
-  val effects: EffectsHandler
+  def effects: EffectsHandler
 
   private implicit class toFullHandler(handler: EffectsHandler) {
     val noEffects: EffectsHandlerFull = (_,_) => Observable.empty

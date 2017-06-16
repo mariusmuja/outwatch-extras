@@ -1,7 +1,5 @@
 package outwatch.extras
 
-import com.softwaremill.quicklens.PathModify
-
 
 /**
   * Created by marius on 23/05/17.
@@ -16,9 +14,17 @@ object Component {
 
 trait PureComponent {
 
-  type State
+  trait EvolvableState_[State] {
+    type StateEvolver =  PartialFunction[Action, State]
+    def evolve : StateEvolver
+  }
 
-  val reducer: Reducer
+  type EvolvableState = EvolvableState_[State]
+  type State <: EvolvableState
+
+  val reducer: Reducer = {
+    case (state, action) if state.evolve.isDefinedAt(action) => state.evolve(action)
+  }
 
   type Reducer = Component.Reducer[State]
   type ReducerFull = Component.ReducerFull[State]
@@ -28,16 +34,6 @@ trait PureComponent {
   private implicit class toFullReducer[S](reducer: Component.Reducer[S]) {
     private val ignoreActionReducer: Component.ReducerFull[S] = (s, _) => s
     @inline def full: Component.ReducerFull[S] = (s,a) => reducer.applyOrElse((s,a), ignoreActionReducer.tupled)
-  }
-
-  protected def combineReducersFirst(reducers: Reducer*): Reducer = reducers.reduce(_ orElse _)
-
-  protected def combineReducers(reducers: Reducer*): Reducer = {
-    case (state, act) => reducers.foldLeft(state)((s, reducer) => reducer.full(s, act))
-  }
-
-  protected def subReducer[S, SS](reducer: Component.Reducer[SS], modify: S => PathModify[S, SS]): Component.Reducer[S] = {
-    case (s, a) => modify(s).using(ss => reducer.full(ss, a))
   }
 }
 
