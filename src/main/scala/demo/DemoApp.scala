@@ -256,15 +256,33 @@ object Router {
   case class LogPage(last: Int) extends Page
 
 
+  sealed trait Redirect[P]
+
+  object Redirect {
+    sealed trait Method
+
+    /** The current URL will not be recorded in history. User can't hit ''Back'' button to reach it. */
+    case object Replace extends Method
+
+    /** The current URL will be recorded in history. User can hit ''Back'' button to reach it. */
+    case object Push extends Method
+  }
+
+  final case class RedirectToPage[P](page: P, method: Redirect.Method)
+
+  final case class RedirectToPath[P](path: Path, method: Redirect.Method)
+
+  type Parsed[Page] = Either[Redirect[Page], Page]
+
   final case class Rule[Page, Target](
-    parse: Path => Option[Page],
+    parse: Path => Option[Parsed[Page]],
     path: Page => Option[Path],
     target: Page => Option[Target]
   )
 
   class RouterConfig[Page, Target](
     rules: Seq[Rule[Page, Target]],
-    notFound: Page
+    val notFound: Parsed[Page]
   ) {
 
     private def findFirst[T,R](list: List[T => Option[R]])(arg: T): Option[R] = {
@@ -276,11 +294,11 @@ object Router {
       }
     }
 
-    def parse(path: Path): Page = findFirst(rules.map(_.parse).toList)(path).getOrElse(notFound)
+    def parse(path: Path): Option[Parsed[Page]] = findFirst(rules.map(_.parse).toList)(path)
 
-    def path(page: Page): Path = findFirst(rules.map(_.path).toList)(page).getOrElse(path(notFound))
+    def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
 
-    def target(page: Page): Target = findFirst(rules.map(_.target).toList)(page).getOrElse(target(notFound))
+    def target(page: Page): Option[Target] = findFirst(rules.map(_.target).toList)(page)
   }
 
   object RouterConfig {
@@ -294,13 +312,13 @@ object Router {
         val route = rf.route
 
         def ~>(f: P => Target) : Rule[Page, Target] = Rule(
-          route.parse,
+          p => route.parse(p).map(Right(_)),
           p => ct.unapply(p).map(route.pathFor),
           p => ct.unapply(p).map(f)
         )
 
         def ~>(f: => Target) : Rule[Page, Target] = Rule(
-          route.parse,
+          p => route.parse(p).map(Right(_)),
           p => ct.unapply(p).map(route.pathFor),
           p => ct.unapply(p).map(p => f)
         )
@@ -308,7 +326,7 @@ object Router {
 
       def rules(r: Rule[Page, Target]*): RouterConfigBuilder[Page, Target] = this.copy(rules = r)
 
-      def notFound(page: Page) = new RouterConfig[Page, Target](rules, page)
+      def notFound(page: Parsed[Page]) = new RouterConfig[Page, Target](rules, page)
     }
 
     def apply[Page, Target] (builder: RouterConfigBuilder[Page, Target] => RouterConfig[Page, Target]) =
@@ -324,7 +342,7 @@ object Router {
       ("log" / int).caseClass[LogPage] ~> (p => createNode(Logger)(Logger.State(Seq(s"${p.last }")), Logger(_))),
       "todo".const(TodoPage) ~> createNode(TodoComponent)(TodoComponent.State(), TodoComponent(_))
     )
-      .notFound(TodoPage)
+      .notFound(Right(TodoPage))
   }
 
 
@@ -336,11 +354,13 @@ object Router {
       val index = str.indexOf("#")
       str.substring(index+1)
     }
-    config.parse(rest)
+    config.parse(rest).getOrElse(
+      config.notFound
+    ).right.get
   }
 
   def pageToPath(page: Page): Path = {
-    val path = config.path(page)
+    val path = config.path(page).getOrElse(Path(""))
 
     val str = dom.document.location.href
     val index = str.indexOf("#")
@@ -352,7 +372,7 @@ object Router {
   }
 
   def pageToNode(page: Page) : VNode = {
-    config.target(page)
+    config.target(page).get
   }
 
 
