@@ -14,8 +14,6 @@ trait ComponentStyle {
 
   type Style <: StyleSheet.Inline
 
-  val defaultStyle: Style
-
   implicit def styleToAttr(styleA: StyleA): Attribute = {
     Attributes.`class` := styleA.htmlClass
   }

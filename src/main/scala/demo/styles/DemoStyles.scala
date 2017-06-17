@@ -19,7 +19,9 @@ trait LogAreaStyle extends ComponentStyle {
     )
   }
 
-  object defaultStyle extends Style with Styles.Publish
+  object Style {
+    implicit object default extends Style with Styles.Publish
+  }
 }
 
 
@@ -48,7 +50,9 @@ trait TextFieldStyle extends ComponentStyle {
     )
   }
 
-  object defaultStyle extends Style with Styles.Publish
+  object Style {
+    implicit object default extends Style with Styles.Publish
+  }
 }
 
 trait TodoModuleStyle extends ComponentStyle {
@@ -71,5 +75,7 @@ trait TodoModuleStyle extends ComponentStyle {
     )
   }
 
-  object defaultStyle extends Style with Styles.Publish
+  object Style {
+    implicit object default extends Style with Styles.Publish
+  }
 }
