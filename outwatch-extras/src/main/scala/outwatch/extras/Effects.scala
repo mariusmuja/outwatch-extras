@@ -8,7 +8,7 @@ trait ComponentWithEffects {
   protected trait StateLike[State] {
     def evolve : PartialFunction[Action, State]
 
-    def effects : PartialFunction[Action, Observable[Action]] = PartialFunction.empty
+    def effects : EffectsHandlerNoState
   }
 
   type ComponentState = StateLike[State]
@@ -17,6 +17,9 @@ trait ComponentWithEffects {
   type Reducer = PartialFunction[(State, Action), State]
   type ReducerFull = (State, Action) =>  State
 
+  type EffectsHandlerNoState = PartialFunction[Action, Observable[Action]]
+  type EffectsHandlerNoStateFull = Action => Observable[Action]
+
   type EffectsHandler = PartialFunction[(State, Action), Observable[Action]]
   type EffectsHandlerFull = (State, Action) => Observable[Action]
 
@@ -24,7 +27,7 @@ trait ComponentWithEffects {
     case (state, action) if state.evolve.isDefinedAt(action) => state.evolve(action)
   }
 
-  def effects : PartialFunction[Action, Observable[Action]] = PartialFunction.empty
+  def effects : EffectsHandlerNoState = PartialFunction.empty
 
   def effectsInState : EffectsHandler = {
     case (state, action) if state.effects.isDefinedAt(action) => state.effects(action)
@@ -33,15 +36,15 @@ trait ComponentWithEffects {
   private var subStateEffects : Option[AnonymousSubscription] = None
   private var subEffects : Option[AnonymousSubscription] = None
 
-  def store(handler: Handler[Action], init: State): Store[State, Action] = {
+  def store(handler: Handler[Action], initState: State, initAction: Action): Store[State, Action] = {
 
-    val initWithEffects = (init, Observable.just[Action]())
-    val source = handler
+    val initWithEffects = (initState, Observable.just[Action]())
+    val source = handler.startWith(initAction)
       .scan(initWithEffects) { case ((s, _), a) =>
         (reducer.full(s, a), effectsInState.full(s, a))
       }
-      .startWith(initWithEffects)
-      .share
+      .publishReplay(1)
+      .refCount
 
     subStateEffects.foreach(_.unsubscribe())
     subStateEffects = Option(handler <-- source.flatMap(_._2))

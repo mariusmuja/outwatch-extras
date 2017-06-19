@@ -16,12 +16,14 @@ import scala.reflect.ClassTag
 import scala.scalajs.js
 import scala.scalajs.js.{Date, JSApp}
 import scala.util.Random
+import scala.concurrent.duration._
 import scalacss.DevDefaults._
 
 
 
 object Logger extends Component with
                       LogAreaStyle {
+  case class Init(message: String) extends Action
   case class LogAction(action: String) extends Action
 
   private def now = (new Date).toLocaleString()
@@ -31,6 +33,8 @@ object Logger extends Component with
   ) extends ComponentState {
 
     def evolve = {
+      case Init(message) =>
+        copy(log :+ message)
       case LogAction(line) =>
         console.log(s"Log >>>> $line")
         copy(log :+ s"$now : $line")
@@ -40,14 +44,24 @@ object Logger extends Component with
   def view(store: Store[State, Action])(implicit stl: Style): VNode = {
     import outwatch.dom._
 
-    textarea(stl.textfield, stl.material,
-      child <-- store.map(_.log.mkString("\n"))
+    div(
+      div(
+        input(value <-- store.map(_.log.lastOption.getOrElse(""))),
+        button(
+          click(Router.LogPage(1)) --> store, "Goto"
+        )
+      ),
+      div(
+        textarea(stl.textfield, stl.material,
+          child <-- store.map(_.log.mkString("\n"))
+        )
+      )
     )
   }
 
-  def apply(handler: Handler[Action], init: State = State())(implicit stl: Style): VNode = {
-    console.log("Create logger")
-    view(store(handler, init))
+  def apply(handler: Handler[Action], init: Action = Action.None)(implicit stl: Style): VNode = {
+    console.log("Logger: "+ init)
+    view(store(handler, State(), init))
   }
 }
 
@@ -118,10 +132,10 @@ object TodoModule extends ComponentWithEffects with
     // simulate some async effects by logging actions with a delay
     override def effects = {
       case AddTodo(s) =>
-        Observable.interval(500).take(1)
+        Observable.interval(500.millis).take(1)
           .mapTo(LogAction(s"Add ${if (todos.isEmpty) "first " else ""}action: $s"))
       case RemoveTodo(todo) =>
-        Observable.interval(500).take(1)
+        Observable.interval(500.millis).take(1)
           .mapTo(LogAction(s"Remove action: ${todo.value}"))
     }
   }
@@ -150,9 +164,9 @@ object TodoModule extends ComponentWithEffects with
     )
   }
 
-  def apply(handler: Handler[Action], init: State = State())(implicit stl: Style): VNode = {
+  def apply(handler: Handler[Action], init: Action = Action.None)(implicit stl: Style): VNode = {
     console.log("TodoModule.apply called")
-    view(store(handler, init))
+    view(store(handler, State(), init))
   }
 }
 
@@ -187,8 +201,8 @@ object TodoComponent extends Component {
     )
   }
 
-  def apply(handler: Handler[Action], init: State = State()): VNode = {
-    view(store(handler, init))
+  def apply(handler: Handler[Action], init: Action = Action.None): VNode = {
+    view(store(handler, State(), init))
   }
 
 }
@@ -259,13 +273,16 @@ object Router {
 
       implicit def toFunc[P](f: => Target): P => Target = _ => f
 
+      implicit def redirectToParsed[P](r: Redirect[P]): Parsed[P] = Left(r)
+      implicit def pageToParsed[P](p: P): Parsed[P] = Right(p)
+
 
       implicit class route[P <: Page](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
 
         val route = rf.route
 
         def ~>(f: => P => Target) : Rule[Page, Target] = Rule(
-          p => route.parse(p).map(Right(_)),
+          p => route.parse(p).map(p => p),
           p => ct.unapply(p).map(route.pathFor),
           p => ct.unapply(p).map(f)
         )
@@ -286,7 +303,7 @@ object Router {
     import cfg._
 
     cfg.rules(
-      ("log" / int).xmap(LogPage)(LogPage.unapply(_).head) ~> (p => Logger(actions)),
+      ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(actions, Logger.Init("Init logger: " + p)) },
       "todo".const(TodoPage) ~> TodoComponent(actions)
     )
       .notFound(Right(TodoPage))
@@ -319,7 +336,20 @@ object Router {
   }
 
   def pageToNode(page: Page) : VNode = {
-    config.target(page).get
+
+    console.log(""+page)
+
+    val node = page match {
+      case LogPage(p) =>
+        Logger(actions, Logger.Init("Page "+ p))
+      case TodoPage =>
+        TodoComponent(actions)
+    }
+
+//    val node = config.target(page).get
+
+//    console.log(""+node)
+    node
   }
 
 
@@ -331,7 +361,7 @@ object Router {
       Observable.empty
   }
 
-  private def eventListener(target: EventTarget, event: String): Observable[Event] =
+  private def fromEvent(target: EventTarget, event: String): Observable[Event] =
     Observable.create { subscriber =>
       val eventHandler: js.Function1[Event, Unit] = (e: Event) => subscriber.next(e)
       target.addEventListener(event, eventHandler)
@@ -343,8 +373,11 @@ object Router {
     }
 
 
-  val location = eventListener(dom.window, "popstate")
-    .map(_ => Path(dom.document.location.href))
+  val location = fromEvent(dom.window, "popstate")
+    .map { _ =>
+      console.log("PopState")
+      Path(dom.document.location.href)
+    }
     .startWith(Path(dom.document.location.href))
 
   val pages = location.map(pathToPage) merge actions.collect { case e: Page => e }
@@ -361,8 +394,25 @@ object Router {
 
 object DemoApp extends JSApp {
 
+  import outwatch.dom._
+
+  def root() : VNode = {
+
+    val store = createHandler[String]()
+    val page = createHandler[Int](1)
+
+    div(
+      button(click(2) --> page, "Change page"),
+      div(key := "1", child <-- page.map { p =>
+        input(value <-- store.startWith("Page " + p))
+      })
+    )
+
+  }
+
   def main(): Unit = {
     Styles.subscribe(_.addToDocument())
-    OutWatch.render("#app", Router())
+//    OutWatch.render("#app", Router())
+    OutWatch.render("#app", root())
   }
 }

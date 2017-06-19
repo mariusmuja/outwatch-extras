@@ -17,12 +17,12 @@ trait Component {
     case (state, action) if state.evolve.isDefinedAt(action) => state.evolve(action)
   }
 
-  def store(handler: Handler[Action], init: State): Store[State, Action] = {
+  def store(handler: Handler[Action], initState: State, initAction: Action): Store[State, Action] = {
 
-    val source = handler
-      .scan(init)(reducer.full)
-      .startWith(init)
-      .share
+    val source = handler.startWith(initAction)
+      .scan(initState)(reducer.full)
+      .publishReplay(1)
+      .refCount
 
     Store(source, handler)
   }

@@ -13,8 +13,6 @@ final case class Store[State, Action](source: Observable[State], handler: Handle
 
   def subscribe(f: State => Unit): Subscription = source.subscribe(f)
 
-  //def map[S](project: State => S): Store[S, Action] = Store(source.distinct.map(project), sink)
-
   def share: Store[State, Action] = Store(source.share, handler)
 
   def shareReplay(count: Int = 1) = Store(source.publishReplay(1).refCount, handler)
