@@ -32,7 +32,7 @@ object Logger extends Component with
 
     def evolve = {
       case LogAction(line) =>
-        console.log(s"Log ->> $line")
+        console.log(s"Log >>>> $line")
         copy(log :+ s"$now : $line")
     }
   }
@@ -45,8 +45,9 @@ object Logger extends Component with
     )
   }
 
-  def apply(handler: Handler[Action])(implicit stl: Style): VNode = {
-    view(store(handler, State()))
+  def apply(handler: Handler[Action], init: State = State())(implicit stl: Style): VNode = {
+    console.log("Create logger")
+    view(store(handler, init))
   }
 }
 
@@ -149,9 +150,9 @@ object TodoModule extends ComponentWithEffects with
     )
   }
 
-  def apply(handler: Handler[Action])(implicit stl: Style): VNode = {
+  def apply(handler: Handler[Action], init: State = State())(implicit stl: Style): VNode = {
     console.log("TodoModule.apply called")
-    view(store(handler, State()))
+    view(store(handler, init))
   }
 }
 
@@ -186,8 +187,8 @@ object TodoComponent extends Component {
     )
   }
 
-  def apply(handler: Handler[Action]): VNode = {
-    view(store(handler, State()))
+  def apply(handler: Handler[Action], init: State = State()): VNode = {
+    view(store(handler, init))
   }
 
 }

@@ -3,6 +3,8 @@ package outwatch
 import rxscalajs.Observable
 import rxscalajs.subscription.AnonymousSubscription
 
+import scala.language.implicitConversions
+
 /**
   * Created by marius on 16/06/17.
   */
