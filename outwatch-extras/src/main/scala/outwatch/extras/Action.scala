@@ -6,5 +6,5 @@ package outwatch.extras
 trait Action
 
 object Action {
-  object None extends Action
+  object Nop extends Action
 }

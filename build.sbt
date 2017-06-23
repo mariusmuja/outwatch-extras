@@ -52,5 +52,6 @@ lazy val extras = project.in(file("outwatch-extras")).settings(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value ::
     Nil
 )
+  .dependsOn(styles)
   .enablePlugins(ScalaJSPlugin)
 

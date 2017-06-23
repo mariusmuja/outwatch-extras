@@ -4,24 +4,24 @@ import demo.styles._
 import org.scalajs.dom
 import org.scalajs.dom.{Event, EventTarget, console}
 import outwatch.Sink
-import outwatch.dom.{Handlers, OutWatch, VNode}
+import outwatch.dom.{Handlers, VNode}
 import outwatch.extras._
 import outwatch.extras.router.{Path, PathParser}
 import outwatch.styles.Styles
 import rxscalajs.Observable
 import rxscalajs.Observable.Creator
 
+import scala.concurrent.duration._
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.scalajs.js
 import scala.scalajs.js.{Date, JSApp}
 import scala.util.Random
-import scala.concurrent.duration._
 import scalacss.DevDefaults._
 
 
 
-object Logger extends Component with
+object Logger extends StyledComponent with
                       LogAreaStyle {
   case class Init(message: String) extends Action
   case class LogAction(action: String) extends Action
@@ -41,6 +41,8 @@ object Logger extends Component with
     }
   }
 
+  def init = State()
+
   def view(store: Store[State, Action])(implicit stl: Style): VNode = {
     import outwatch.dom._
 
@@ -57,11 +59,6 @@ object Logger extends Component with
         )
       )
     )
-  }
-
-  def apply(handler: Handler[Action], init: Action = Action.None)(implicit stl: Style): VNode = {
-    console.log("Logger: "+ init)
-    view(store(handler, State(), init))
   }
 }
 
@@ -108,7 +105,7 @@ object TextField extends TextFieldStyle {
 }
 
 
-object TodoModule extends ComponentWithEffects with
+object TodoModule extends StyledComponentWithEffects with
                           TodoModuleStyle {
 
   import Logger.LogAction
@@ -143,15 +140,18 @@ object TodoModule extends ComponentWithEffects with
   private def todoItem(todo: Todo, actions: Sink[Action], stl: Style): VNode = {
     import outwatch.dom._
     li(
+      key := s"${todo.id}",
       span(todo.value),
       button(stl.button, stl.material, click(RemoveTodo(todo)) --> actions, "Delete")
     )
   }
 
+  def init = State()
+
   def view(store: Store[State, Action])(implicit stl: Style): VNode = {
     import outwatch.dom._
 
-    val stringSink = store.redirect[String] { item => item.map(AddTodo) }
+    val stringSink = store.sink.redirect[String] { item => item.map(AddTodo) }
 
     val todoViews = store.distinct.map(_.todos.map(todoItem(_, store, stl)))
 
@@ -162,11 +162,6 @@ object TodoModule extends ComponentWithEffects with
       ),
       ul(children <-- todoViews)
     )
-  }
-
-  def apply(handler: Handler[Action], init: Action = Action.None)(implicit stl: Style): VNode = {
-    console.log("TodoModule.apply called")
-    view(store(handler, State(), init))
   }
 }
 
@@ -183,6 +178,8 @@ object TodoComponent extends Component {
     }
   }
 
+  def init = State()
+
   def view(store: Store[State, Action]): VNode = {
     import outwatch.dom._
 
@@ -192,19 +189,14 @@ object TodoComponent extends Component {
           td("Last action: ", child <-- store.map(_.lastAction))
         ),
         tr(
-          td(TodoModule(store.handler))
+          td(TodoModule(store))
         ),
         tr(
-          td(Logger(store.handler))
+          td(Logger(store))
         )
       )
     )
   }
-
-  def apply(handler: Handler[Action], init: Action = Action.None): VNode = {
-    view(store(handler, State(), init))
-  }
-
 }
 
 
@@ -212,7 +204,7 @@ object TodoComponent extends Component {
 object Router {
 
   private val pageChangePipe = SinkPipe()
-  private val actions = Handler(Handlers.createHandler[Action]())
+  private val actions = Handlers.createHandler[Action]()
   pageChangePipe.pipe(actions.flatMap(pageChange), actions)
 
   trait Page extends Action
@@ -335,7 +327,7 @@ object Router {
     result
   }
 
-  def pageToNode(page: Page) : VNode = {
+  def pageToNode(page: Page) : Observable[VNode] = {
 
     console.log(""+page)
 
@@ -349,7 +341,7 @@ object Router {
 //    val node = config.target(page).get
 
 //    console.log(""+node)
-    node
+    Observable.just(node)
   }
 
 
@@ -384,7 +376,7 @@ object Router {
 
   def apply(): VNode = {
     import outwatch.dom._
-    div(child <-- pages.map(pageToNode))
+    div(child <-- pages.switchMap(pageToNode))
   }
 
 }
@@ -396,23 +388,8 @@ object DemoApp extends JSApp {
 
   import outwatch.dom._
 
-  def root() : VNode = {
-
-    val store = createHandler[String]()
-    val page = createHandler[Int](1)
-
-    div(
-      button(click(2) --> page, "Change page"),
-      div(key := "1", child <-- page.map { p =>
-        input(value <-- store.startWith("Page " + p))
-      })
-    )
-
-  }
-
   def main(): Unit = {
     Styles.subscribe(_.addToDocument())
-//    OutWatch.render("#app", Router())
-    OutWatch.render("#app", root())
+    OutWatch.render("#app", Router())
   }
 }

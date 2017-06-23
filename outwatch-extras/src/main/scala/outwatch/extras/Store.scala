@@ -20,8 +20,8 @@ final case class Store[State, Action](source: Observable[State], handler: Handle
 
 object Store {
 
-
-  implicit def toSink[Action](store: Store[_, Action]): Sink[Action] = store.handler
+  implicit def toSink[Action](store: Store[_, Action]): Sink[Action] = store.handler.sink
+  implicit def toHandler[Action](store: Store[_, Action]): Handler[Action] = store.handler
   implicit def toSource[State](store: Store[State, _]): Observable[State] = store.source
 
 

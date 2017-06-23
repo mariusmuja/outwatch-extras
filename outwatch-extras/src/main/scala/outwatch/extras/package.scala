@@ -24,6 +24,7 @@ package object extras {
 
     implicit def toSink[T](handler: Handler[T]): Sink[T] = handler.sink
     implicit def toSource[T](handler: Handler[T]): Observable[T] = handler.source
+    implicit def fromSinkObservable[T](handler: Sink[T] with Observable[T]): Handler[T] = apply(handler)
 
     def apply[T](handler: Observable[T] with Sink[T]): Handler[T] = Handler(handler, handler)
   }
