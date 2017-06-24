@@ -3,6 +3,7 @@ package outwatch.extras
 import outwatch.dom.VNode
 import outwatch.styles.ComponentStyle
 import rxscalajs.Observable
+import rxscalajs.subscription.AnonymousSubscription
 
 
 /**
@@ -27,11 +28,11 @@ trait ComponentBase {
 
   def init: State
 
-  private[extras] def store(handler: Handler[Action], initActions: Action*): Store[State, Action] = {
+  private[extras] def store(handler: Handler[Action], initState: State, initActions: Action*): Store[State, Action] = {
 
     val initActionsOrNop = if (initActions.isEmpty) Seq(Action.Nop) else initActions
     val source = handler.source.startWithMany(initActionsOrNop : _*)
-      .scan(init)(reducer)
+      .scan(initState)(reducer)
       .publishReplay(1)
       .refCount
 
@@ -66,19 +67,26 @@ trait ComponentWithEffectsBase {
 
   def init: State
 
-  private[extras] def store(handler: Handler[Action], initActions: Action*): Store[State, Action] = {
+  private var effectsSubscription : Option[AnonymousSubscription] = None
 
-    val initWithEffects = (init, Observable.just[Action]())
-    val source = handler.source.startWithMany(initActions : _*)
+  private[extras] def store(handler: Handler[Action], initState: State,  initActions: Action*): Store[State, Action] = {
+
+    val initWithEffects = (initState, Observable.just[Action]())
+    val initActionsOrNop = if (initActions.isEmpty) Seq(Action.Nop) else initActions
+    val source = handler.source.startWithMany(initActionsOrNop : _*)
       .scan(initWithEffects) { case ((s, _), a) =>
         (reducer(s, a), effects(s, a))
       }
       .publishReplay(1)
       .refCount
 
-    val sinkWithEffects = handler.sink.redirect[Action](sinkObs => sinkObs.merge(source.flatMap(_._2)))
+    org.scalajs.dom.console.log(""+effectsSubscription)
+    effectsSubscription.foreach(_.unsubscribe())
+    effectsSubscription = Some(handler.sink <-- source.flatMap(_._2))
 
-    Store(source.map(_._1), Handler(handler, sinkWithEffects))
+//    val sinkWithEffects = handler.sink.redirect[Action](sinkObs => sinkObs.merge(source.flatMap(_._2)))
+
+    Store(source.map(_._1), handler)
   }
 }
 
@@ -88,7 +96,7 @@ trait Component extends ComponentBase {
   def view(handler: Store[State, Action]): VNode
 
   def apply(handler: Handler[Action], initActions: Action*): VNode = {
-    view(store(handler, initActions : _*))
+    view(store(handler, init, initActions : _*))
   }
 }
 
@@ -98,7 +106,7 @@ trait StyledComponent extends ComponentBase with ComponentStyle {
   def view(handler: Store[State, Action])(implicit stl: Style): VNode
 
   def apply(handler: Handler[Action], initActions: Action*)(implicit stl: Style): VNode = {
-    view(store(handler, initActions : _*))
+    view(store(handler, init, initActions : _*))
   }
 }
 
@@ -107,7 +115,7 @@ trait ComponentWithEffects extends ComponentWithEffectsBase {
   def view(handler: Store[State, Action]): VNode
 
   def apply(handler: Handler[Action], initActions: Action*): VNode = {
-    view(store(handler, initActions : _*))
+    view(store(handler, init, initActions : _*))
   }
 }
 
@@ -117,6 +125,6 @@ trait StyledComponentWithEffects extends ComponentWithEffectsBase with Component
   def view(handler: Store[State, Action])(implicit stl: Style): VNode
 
   def apply(handler: Handler[Action], initActions: Action*)(implicit stl: Style): VNode = {
-    view(store(handler, initActions : _*))
+    view(store(handler, init, initActions : _*))
   }
 }

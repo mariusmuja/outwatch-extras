@@ -1,7 +1,6 @@
 package outwatch
 
 import rxscalajs.Observable
-import rxscalajs.subscription.AnonymousSubscription
 
 import scala.language.implicitConversions
 
@@ -10,12 +9,10 @@ import scala.language.implicitConversions
   */
 package object extras {
 
-  case class Handler[T](
-    source: Observable[T],
-    sink: Sink[T]
-  ) {
-    def pipeInto(obs: Observable[T]) : Handler[T] = {
-      val newSink = sink.redirect[T](sinkObs => sinkObs.merge(obs))
+  case class Handler[T](source: Observable[T], sink: Sink[T]) {
+
+    def redirect(projection: Observable[T] => Observable[T]): Handler[T] = {
+      val newSink = sink.redirect[T](projection)
       Handler(source, newSink)
     }
   }
@@ -27,15 +24,6 @@ package object extras {
     implicit def fromSinkObservable[T](handler: Sink[T] with Observable[T]): Handler[T] = apply(handler)
 
     def apply[T](handler: Observable[T] with Sink[T]): Handler[T] = Handler(handler, handler)
-  }
-
-  case class SinkPipe() {
-    private var sub : Option[AnonymousSubscription] = None
-
-    def pipe[T](obs: Observable[T], sink: Sink[T]) = {
-      sub.foreach(_.unsubscribe())
-      sub = Option(sink <-- obs)
-    }
   }
 
 }

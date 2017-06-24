@@ -203,9 +203,8 @@ object TodoComponent extends Component {
 
 object Router {
 
-  private val pageChangePipe = SinkPipe()
-  private val actions = Handlers.createHandler[Action]()
-  pageChangePipe.pipe(actions.flatMap(pageChange), actions)
+  private val actionsBase = Handlers.createHandler[Action]()
+  private val actions = Handler(actionsBase).redirect(obs => obs merge obs.flatMap(pageChange))
 
   trait Page extends Action
   object TodoPage extends Page
@@ -327,21 +326,8 @@ object Router {
     result
   }
 
-  def pageToNode(page: Page) : Observable[VNode] = {
-
-    console.log(""+page)
-
-    val node = page match {
-      case LogPage(p) =>
-        Logger(actions, Logger.Init("Page "+ p))
-      case TodoPage =>
-        TodoComponent(actions)
-    }
-
-//    val node = config.target(page).get
-
-//    console.log(""+node)
-    Observable.just(node)
+  def pageToNode(page: Page) : VNode = {
+    config.target(page).get
   }
 
 
@@ -365,23 +351,26 @@ object Router {
     }
 
 
-  val location = fromEvent(dom.window, "popstate")
-    .map { _ =>
-      console.log("PopState")
-      Path(dom.document.location.href)
-    }
-    .startWith(Path(dom.document.location.href))
+  val popStatePages = fromEvent(dom.window, "popstate")
+    .startWith(dom.document.createEvent("PopStateEvent"))
+    .map { _ => Path(dom.document.location.href) }
+    .map(pathToPage)
 
-  val pages = location.map(pathToPage) merge actions.collect { case e: Page => e }
+  val actionPages = actions.collect { case e: Page => e }
+
+  val nodes = popStatePages.merge(actionPages)
+      .map(pageToNode)
+
+
+  val view : (Handler[Action], Observable[VNode]) => VNode = (_, nodes) => outwatch.dom.div(outwatch.dom.child <-- nodes)
+
+  def render(view: (Handler[Action], Observable[VNode]) => VNode) : VNode = view(actions, nodes)
 
   def apply(): VNode = {
-    import outwatch.dom._
-    div(child <-- pages.switchMap(pageToNode))
+    render(view)
   }
 
 }
-
-
 
 
 object DemoApp extends JSApp {
