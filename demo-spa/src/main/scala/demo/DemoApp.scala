@@ -6,7 +6,7 @@ import org.scalajs.dom.{Event, EventTarget, console}
 import outwatch.{Sink, SinkUtil}
 import outwatch.dom.{Handlers, VNode}
 import outwatch.extras._
-import outwatch.extras.router.{Path, PathParser}
+import outwatch.extras.router.{AbsUrl, BaseUrl, Path, PathParser}
 import outwatch.styles.Styles
 import rxscalajs.Observable
 import rxscalajs.Observable.Creator
@@ -50,7 +50,7 @@ object Logger extends Component with
       div(
         input(value <-- store.map(_.log.lastOption.getOrElse(""))),
         button(
-          click(Router.LogPage(1)) --> router, "Goto"
+          click(Router.LogPage(1).replace) --> router, "Goto"
         )
       ),
       div(
@@ -216,7 +216,7 @@ object TodoComponent extends Component {
     )
   }
 
-  def apply(router: Sink[Router.Page], initActions: Action*): VNode = {
+  def apply(router: Router.PageSink, initActions: Action*): VNode = {
     view(mkStore(initActions), router)
   }
 
@@ -224,44 +224,26 @@ object TodoComponent extends Component {
 
 
 
-object Router {
-
-  private val pageActions = Handlers.createHandler[Page]()
-
-  type PageSink= Sink[Page]
+trait Router {
 
   trait Page
-  object TodoPage extends Page
-  case class LogPage(last: Int) extends Page
-
-
-  sealed trait Redirect[P]
-
-  object Redirect {
-    sealed trait Method
-
-    /** The current URL will not be recorded in history. User can't hit ''Back'' button to reach it. */
-    case object Replace extends Method
-
-    /** The current URL will be recorded in history. User can hit ''Back'' button to reach it. */
-    case object Push extends Method
+  object Page {
+    case class Replace(page: Page) extends Page
+    implicit class toReplace(p: Page) {
+      def replace = Replace(p)
+    }
   }
 
-  final case class RedirectToPage[P](page: P, method: Redirect.Method)
+  type PageSink = Sink[Page]
 
-  final case class RedirectToPath[P](path: Path, method: Redirect.Method)
+  protected val routerActions = Handlers.createHandler[Page]()
 
-  type Parsed[Page] = Either[Redirect[Page], Page]
 
-  final case class Rule[Page, Target](
-    parse: Path => Option[Parsed[Page]],
-    path: Page => Option[Path],
-    target: Page => Option[Target]
-  )
+  case class Redirect[P](page: P)
 
-  class RouterConfig[Page, Target](
-    rules: Seq[Rule[Page, Target]],
-    val notFound: Parsed[Page]
+  protected class RouterConfig[Page](
+    rules: Seq[RouterConfig.Rule[Page]],
+    val notFound: RouterConfig.Parsed[Page]
   ) {
 
     private def findFirst[T, R](list: List[T => Option[R]])(arg: T): Option[R] = {
@@ -273,90 +255,98 @@ object Router {
       }
     }
 
-    def parse(path: Path): Option[Parsed[Page]] = findFirst(rules.map(_.parse).toList)(path)
+    def parse(path: Path): Option[RouterConfig.Parsed[Page]] = findFirst(rules.map(_.parse).toList)(path)
 
     def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
 
-    def target(page: Page): Option[Target] = findFirst(rules.map(_.target).toList)(page)
+    def target(page: Page): Option[VNode] = findFirst(rules.map(_.target).toList)(page)
   }
 
-  object RouterConfig {
+  protected object RouterConfig {
 
-    case class RouterConfigBuilder[Page, Target](
-      rules: Seq[Rule[Page, Target]]
+    type Parsed[Page] = Either[Redirect[Page], Page]
+
+    final case class Rule[Page](
+      parse: Path => Option[Parsed[Page]],
+      path: Page => Option[Path],
+      target: Page => Option[VNode]
+    )
+
+    case class RouterConfigBuilder[Page](
+      rules: Seq[Rule[Page]]
     ) extends PathParser {
 
-      implicit def toFunc[P](f: => Target): P => Target = _ => f
-
-      implicit def redirectToParsed[P](r: Redirect[P]): Parsed[P] = Left(r)
-      implicit def pageToParsed[P](p: P): Parsed[P] = Right(p)
-
+      implicit def toFunc[P](f: => VNode): P => VNode = _ => f
+      implicit def toPage[P, P2 <: Page](f: => P2): P => P2 = _ => f
 
       implicit class route[P <: Page](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
 
-        val route = rf.route
-
-        def ~>(f: => P => Target) : Rule[Page, Target] = Rule(
-          p => route.parse(p).map(p => p),
-          p => ct.unapply(p).map(route.pathFor),
+        def ~>(f: => P => VNode) : Rule[Page] = Rule(
+          p => rf.route.parse(p).map(p => Right(p)),
+          p => ct.unapply(p).map(rf.route.pathFor),
           p => ct.unapply(p).map(f)
         )
       }
 
-      def rules(r: Rule[Page, Target]*): RouterConfigBuilder[Page, Target] = this.copy(rules = r)
+      implicit class redirect[P](rf: RouteFragment[P]) {
+        def ~>[P2 <: Page](f: => P => P2) : Rule[Page] = Rule(
+          p => rf.route.parse(p).map(p => Left(Redirect(f(p)))),
+          p => None,
+          p => None
+        )
+      }
 
-      def notFound(page: Parsed[Page]) = new RouterConfig[Page, Target](rules, page)
+      def rules(r: Rule[Page]*): RouterConfigBuilder[Page] = this.copy(rules = r)
+
+      def notFound(page: Page) = new RouterConfig[Page](rules, Left(Redirect(page)))
     }
 
-    def apply[Page, Target] (builder: RouterConfigBuilder[Page, Target] => RouterConfig[Page, Target]) =
-      builder(RouterConfigBuilder[Page, Target](Seq.empty))
+    def apply(builder: (RouterConfigBuilder[Page]) => RouterConfig[Page]): RouterConfig[Page] =
+      builder(RouterConfigBuilder[Page](Seq.empty))
   }
 
 
-  val config = RouterConfig[Page, VNode] { cfg =>
-    import cfg._
 
-    cfg.rules(
-      ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(pageActions, Logger.Init("Init logger: " + p)) },
-      "todo".const(TodoPage) ~> TodoComponent(pageActions)
-    )
-      .notFound(Right(TodoPage))
-  }
+  val config : RouterConfig[Page]
+
+  val baseUrl : BaseUrl
 
 
-
-
-
-  def pathToPage(path: Path): Page = {
-    val rest = path.map { str =>
-      val index = str.indexOf("#")
-      str.substring(index+1)
-    }
-    config.parse(rest).getOrElse(
+  private def urlToPage(absUrl: AbsUrl): Page = {
+    val path = Path(absUrl.value.replaceFirst(baseUrl.value, ""))
+    val parsed = config.parse(path).getOrElse(
       config.notFound
-    ).right.get
+    )
+
+    parsed match {
+      case Right(page) => page
+      case Left(Redirect(Page.Replace(page))) =>
+        dom.window.history.replaceState("", "", pageToUrl(page).value)
+        page
+      case Left(Redirect(page)) =>
+        dom.window.history.pushState("", "", pageToUrl(page).value)
+        page
+    }
   }
 
-  def pageToPath(page: Page): Path = {
-    val path = config.path(page).getOrElse(Path(""))
-
-    val str = dom.document.location.href
-    val index = str.indexOf("#")
-    val prefix = str.substring(0, index + 1)
-
-    val result = Path(prefix) + path
-    console.log(""+result.value)
-    result
+  private def pageToUrl(page: Page): AbsUrl = {
+    val path = config.path(page).getOrElse(Path.root)
+    path.abs(baseUrl)
   }
 
-  def pageToNode(page: Page) : VNode = {
+  private def pageToNode(page: Page) : VNode = {
     config.target(page).get
   }
 
-
   private def pageChanged[S](p: Page) : Page = {
-    dom.window.history.pushState("", "", pageToPath(p).value)
-    p
+    p match {
+      case Page.Replace(page) =>
+        dom.window.history.replaceState("", "", pageToUrl(p).value)
+        page
+      case page: Page =>
+        dom.window.history.pushState ("", "", pageToUrl (p).value)
+        page
+    }
   }
 
   private def fromEvent(target: EventTarget, event: String): Observable[Event] =
@@ -370,31 +360,57 @@ object Router {
       cancel
     }
 
-  val popStateObservable = fromEvent(dom.window, "popstate")
+  private val popStateObservable = fromEvent(dom.window, "popstate")
     .startWith(dom.document.createEvent("PopStateEvent"))
-    .map { _ => Path(dom.document.location.href) }
-    .map(pathToPage)
+    .map { _ => AbsUrl.fromWindow }
+    .map(urlToPage)
 
-  val nodes = popStateObservable.merge(pageActions.map(pageChanged))
+  private val nodes = popStateObservable.merge(routerActions.map(pageChanged))
       .map(pageToNode)
 
-  val view : (Observable[VNode]) => VNode = nodes => outwatch.dom.div(outwatch.dom.child <-- nodes)
-
-  def render(view: Observable[VNode] => VNode) : VNode = view(nodes)
-
-  def apply(): VNode = {
-    render(view)
+  def baseLayout(node: Observable[VNode]) : VNode = {
+    import outwatch.dom._
+    div(outwatch.dom.child <-- node)
   }
 
+  def apply(): VNode = baseLayout(nodes)
+}
+
+object Router extends Router {
+
+  object TodoPage extends Page
+  case class LogPage(last: Int) extends Page
+
+  val baseUrl = BaseUrl.until_# + "#"
+
+  override def baseLayout(node: Observable[VNode]) : VNode = {
+    import outwatch.dom._
+    div(
+      h4("Todo"),
+      div(outwatch.dom.child <-- node)
+    )
+  }
+
+  val config = RouterConfig{ dsl =>
+    import dsl._
+
+    dsl.rules(
+      ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(routerActions, Logger.Init("Init logger: " + p)) },
+      "todo".const(TodoPage) ~> TodoComponent(routerActions),
+      "log".const(Unit) ~> LogPage(11).replace
+    )
+      .notFound(TodoPage.replace)
+  }
 }
 
 
 object DemoApp extends JSApp {
 
-  import outwatch.dom._
+  import outwatch.dom.OutWatch
 
   def main(): Unit = {
     Styles.subscribe(_.addToDocument())
+
     OutWatch.render("#app", Router())
   }
 }
