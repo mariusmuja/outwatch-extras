@@ -50,7 +50,7 @@ object Logger extends Component with
       div(
         input(value <-- store.map(_.log.lastOption.getOrElse(""))),
         button(
-          click(Router.LogPage(1).replace) --> router, "Goto"
+          click(Router.LogPage(1).withReplace) --> router, "Goto"
         )
       ),
       div(
@@ -230,7 +230,7 @@ trait Router {
   object Page {
     case class Replace(page: Page) extends Page
     implicit class toReplace(p: Page) {
-      def replace = Replace(p)
+      def withReplace = Replace(p)
     }
   }
 
@@ -243,7 +243,7 @@ trait Router {
 
   protected class RouterConfig[Page](
     rules: Seq[RouterConfig.Rule[Page]],
-    val notFound: RouterConfig.Parsed[Page]
+    val notFound: Parsed[Page]
   ) {
 
     private def findFirst[T, R](list: List[T => Option[R]])(arg: T): Option[R] = {
@@ -255,16 +255,16 @@ trait Router {
       }
     }
 
-    def parse(path: Path): Option[RouterConfig.Parsed[Page]] = findFirst(rules.map(_.parse).toList)(path)
+    def parse(path: Path): Option[Parsed[Page]] = findFirst(rules.map(_.parse).toList)(path)
 
     def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
 
     def target(page: Page): Option[VNode] = findFirst(rules.map(_.target).toList)(page)
   }
 
-  protected object RouterConfig {
+  type Parsed[Page] = Either[Redirect[Page], Page]
 
-    type Parsed[Page] = Either[Redirect[Page], Page]
+  protected object RouterConfig {
 
     final case class Rule[Page](
       parse: Path => Option[Parsed[Page]],
@@ -299,6 +299,8 @@ trait Router {
       def rules(r: Rule[Page]*): RouterConfigBuilder[Page] = this.copy(rules = r)
 
       def notFound(page: Page) = new RouterConfig[Page](rules, Left(Redirect(page)))
+
+//      def notFound(page: VNode) = new RouterConfig[Page](rules, Left(Redirect(page)))
     }
 
     def apply(builder: (RouterConfigBuilder[Page]) => RouterConfig[Page]): RouterConfig[Page] =
@@ -312,21 +314,12 @@ trait Router {
   val baseUrl : BaseUrl
 
 
-  private def urlToPage(absUrl: AbsUrl): Page = {
+  private def parseUrl(absUrl: AbsUrl): Parsed[Page] = {
     val path = Path(absUrl.value.replaceFirst(baseUrl.value, ""))
     val parsed = config.parse(path).getOrElse(
       config.notFound
     )
-
-    parsed match {
-      case Right(page) => page
-      case Left(Redirect(Page.Replace(page))) =>
-        dom.window.history.replaceState("", "", pageToUrl(page).value)
-        page
-      case Left(Redirect(page)) =>
-        dom.window.history.pushState("", "", pageToUrl(page).value)
-        page
-    }
+    parsed
   }
 
   private def pageToUrl(page: Page): AbsUrl = {
@@ -338,14 +331,18 @@ trait Router {
     config.target(page).get
   }
 
-  private def pageChanged[S](p: Page) : Page = {
-    p match {
-      case Page.Replace(page) =>
-        dom.window.history.replaceState("", "", pageToUrl(p).value)
-        page
-      case page: Page =>
-        dom.window.history.pushState ("", "", pageToUrl (p).value)
-        page
+
+
+  private def parsedToNodeWithEffects[S](parsed: Parsed[Page]) : VNode = {
+    parsed match {
+      case Right(page) =>
+        pageToNode(page)
+      case Left(Redirect(Page.Replace(page))) =>
+        dom.window.history.replaceState("", "", pageToUrl(page).value)
+        pageToNode(page)
+      case Left(Redirect(page)) =>
+        dom.window.history.pushState("", "", pageToUrl(page).value)
+        pageToNode(page)
     }
   }
 
@@ -363,10 +360,11 @@ trait Router {
   private val popStateObservable = fromEvent(dom.window, "popstate")
     .startWith(dom.document.createEvent("PopStateEvent"))
     .map { _ => AbsUrl.fromWindow }
-    .map(urlToPage)
+    .map(parseUrl)
 
-  private val nodes = popStateObservable.merge(routerActions.map(pageChanged))
-      .map(pageToNode)
+
+  private val nodes = popStateObservable.merge(routerActions.map(p => Left(Redirect(p))))
+    .map(parsedToNodeWithEffects)
 
   def baseLayout(node: Observable[VNode]) : VNode = {
     import outwatch.dom._
@@ -397,9 +395,9 @@ object Router extends Router {
     dsl.rules(
       ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(routerActions, Logger.Init("Init logger: " + p)) },
       "todo".const(TodoPage) ~> TodoComponent(routerActions),
-      "log".const(Unit) ~> LogPage(11).replace
+      "log".const(Unit) ~> LogPage(11).withReplace
     )
-      .notFound(TodoPage.replace)
+      .notFound(TodoPage.withReplace)
   }
 }
 
