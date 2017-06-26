@@ -288,6 +288,5 @@ trait PathParser {
 
   implicit def routeFragmentFromString(l: String): RouteFragment[Unit] = RouteFragment.literal(l)
   implicit def routeFragmentFromPath(p: Path): RouteFragment[Unit] = RouteFragment.literal(p.value)
-//  implicit def _auto_route_from_routeB[A, R <% RouteFragment[A]](r: R): Route[A] = r.route
 
 }
