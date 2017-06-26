@@ -3,7 +3,7 @@ package demo
 import demo.styles._
 import org.scalajs.dom
 import org.scalajs.dom.{Event, EventTarget, console}
-import outwatch.Sink
+import outwatch.{Sink, SinkUtil}
 import outwatch.dom.{Handlers, VNode}
 import outwatch.extras._
 import outwatch.extras.router.{Path, PathParser}
@@ -21,7 +21,7 @@ import scalacss.DevDefaults._
 
 
 
-object Logger extends StyledComponent with
+object Logger extends Component with
                       LogAreaStyle {
   case class Init(message: String) extends Action
   case class LogAction(action: String) extends Action
@@ -43,14 +43,14 @@ object Logger extends StyledComponent with
 
   def init = State()
 
-  def view(store: Store[State, Action])(implicit stl: Style): VNode = {
+  def view(store: Store[State, Action], router: Router.PageSink)(implicit stl: Style): VNode = {
     import outwatch.dom._
 
     div(
       div(
         input(value <-- store.map(_.log.lastOption.getOrElse(""))),
         button(
-          click(Router.LogPage(1)) --> store, "Goto"
+          click(Router.LogPage(1)) --> router, "Goto"
         )
       ),
       div(
@@ -59,6 +59,15 @@ object Logger extends StyledComponent with
         )
       )
     )
+  }
+
+  def apply(router: Router.PageSink, initActions: Action*): VNode = {
+    view(mkStore(initActions), router)
+  }
+
+  def withSink(router: Router.PageSink, initActions: Action*): (VNode, ActionSink) = {
+    val store = mkStore(initActions)
+    view(store, router) -> store.sink
   }
 }
 
@@ -105,10 +114,8 @@ object TextField extends TextFieldStyle {
 }
 
 
-object TodoModule extends StyledComponentWithEffects with
+object TodoModule extends Component with
                           TodoModuleStyle {
-
-  import Logger.LogAction
 
   case class AddTodo(value: String) extends Action
   case class RemoveTodo(todo: Todo) extends Action
@@ -125,19 +132,9 @@ object TodoModule extends StyledComponentWithEffects with
       case RemoveTodo(todo) =>
         copy(todos = todos.filter(_.id != todo.id))
     }
-
-    // simulate some async effects by logging actions with a delay
-    override def effects = {
-      case AddTodo(s) =>
-        Observable.interval(500.millis).take(1)
-          .mapTo(LogAction(s"Add ${if (todos.isEmpty) "first " else ""}action: $s"))
-      case RemoveTodo(todo) =>
-        Observable.interval(500.millis).take(1)
-          .mapTo(LogAction(s"Remove action: ${todo.value}"))
-    }
   }
 
-  private def todoItem(todo: Todo, actions: Sink[Action], stl: Style): VNode = {
+  private def todoItem(todo: Todo, actions: ActionSink, stl: Style): VNode = {
     import outwatch.dom._
     li(
       key := s"${todo.id}",
@@ -148,25 +145,43 @@ object TodoModule extends StyledComponentWithEffects with
 
   def init = State()
 
-  def view(store: Store[State, Action])(implicit stl: Style): VNode = {
+  def view(store: Store[State, Action], routes: Router.PageSink, logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit stl: Style): VNode = {
     import outwatch.dom._
 
-    val stringSink = store.sink.redirect[String] { item => item.map(AddTodo) }
+    val loggedActions = logger.redirectMap[Action]{
+      case AddTodo(value) => Logger.LogAction(s"Add $value")
+      case RemoveTodo(todo) => Logger.LogAction(s"Remove ${todo.value}")
+    }
+    val parentSink = parent.redirectMap[Action] {
+      case AddTodo(value) => TodoComponent.AddTodo(value)
+      case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
+    }
 
-    val todoViews = store.distinct.map(_.todos.map(todoItem(_, store, stl)))
+    val actions = SinkUtil.redirectInto(store.sink, loggedActions, parentSink)
+
+    val todoViews = store.source.map(_.todos.map(todoItem(_, actions, stl)))
 
     div(
-      TextField(stringSink),
+      TextField(actions.redirectMap(AddTodo)),
       button(stl.button, stl.material,
-        click(Router.LogPage(10)) --> store, "Log only"
+        click(Router.LogPage(10)) --> routes, "Log only"
       ),
       ul(children <-- todoViews)
     )
   }
+
+  def apply(router: Router.PageSink,
+            logger: Logger.ActionSink,
+            parent: TodoComponent.ActionSink,
+            initActions: Action*): VNode = {
+    view(mkStore(initActions), router, logger, parent)
+  }
 }
 
 object TodoComponent extends Component {
-  import TodoModule.{AddTodo, RemoveTodo}
+
+  case class AddTodo(value: String) extends Action
+  case class RemoveTodo(value: String) extends Action
 
   case class State(
     lastAction: String = "None"
@@ -174,14 +189,16 @@ object TodoComponent extends Component {
 
     def evolve = {
       case AddTodo(value) => copy(lastAction = s"Add $value")
-      case RemoveTodo(todo) => copy(lastAction = s"Remove ${todo.value }")
+      case RemoveTodo(value) => copy(lastAction = s"Remove $value")
     }
   }
 
   def init = State()
 
-  def view(store: Store[State, Action]): VNode = {
+  def view(store: Store[State, Action], router: Sink[Router.Page]): VNode = {
     import outwatch.dom._
+
+    val (logger, loggerSink) = Logger.withSink(router)
 
     table(
       tbody(
@@ -189,24 +206,31 @@ object TodoComponent extends Component {
           td("Last action: ", child <-- store.map(_.lastAction))
         ),
         tr(
-          td(TodoModule(store))
+          td(TodoModule(router, loggerSink, store.sink)),
+          td(TodoModule(router, loggerSink, store.sink))
         ),
         tr(
-          td(Logger(store))
+          td(logger)
         )
       )
     )
   }
+
+  def apply(router: Sink[Router.Page], initActions: Action*): VNode = {
+    view(mkStore(initActions), router)
+  }
+
 }
 
 
 
 object Router {
 
-  private val actionsBase = Handlers.createHandler[Action]()
-  private val actions = Handler(actionsBase).redirect(obs => obs merge obs.flatMap(pageChange))
+  private val pageActions = Handlers.createHandler[Page]()
 
-  trait Page extends Action
+  type PageSink= Sink[Page]
+
+  trait Page
   object TodoPage extends Page
   case class LogPage(last: Int) extends Page
 
@@ -279,7 +303,6 @@ object Router {
         )
       }
 
-
       def rules(r: Rule[Page, Target]*): RouterConfigBuilder[Page, Target] = this.copy(rules = r)
 
       def notFound(page: Parsed[Page]) = new RouterConfig[Page, Target](rules, page)
@@ -294,8 +317,8 @@ object Router {
     import cfg._
 
     cfg.rules(
-      ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(actions, Logger.Init("Init logger: " + p)) },
-      "todo".const(TodoPage) ~> TodoComponent(actions)
+      ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(pageActions, Logger.Init("Init logger: " + p)) },
+      "todo".const(TodoPage) ~> TodoComponent(pageActions)
     )
       .notFound(Right(TodoPage))
   }
@@ -331,12 +354,9 @@ object Router {
   }
 
 
-  private def pageChange[S]: Action => Observable[Action] = {
-    case p: Page =>
-      dom.window.history.pushState("", "", pageToPath(p).value)
-      Observable.empty
-    case _ =>
-      Observable.empty
+  private def pageChanged[S](p: Page) : Page = {
+    dom.window.history.pushState("", "", pageToPath(p).value)
+    p
   }
 
   private def fromEvent(target: EventTarget, event: String): Observable[Event] =
@@ -350,21 +370,17 @@ object Router {
       cancel
     }
 
-
-  val popStatePages = fromEvent(dom.window, "popstate")
+  val popStateObservable = fromEvent(dom.window, "popstate")
     .startWith(dom.document.createEvent("PopStateEvent"))
     .map { _ => Path(dom.document.location.href) }
     .map(pathToPage)
 
-  val actionPages = actions.collect { case e: Page => e }
-
-  val nodes = popStatePages.merge(actionPages)
+  val nodes = popStateObservable.merge(pageActions.map(pageChanged))
       .map(pageToNode)
 
+  val view : (Observable[VNode]) => VNode = nodes => outwatch.dom.div(outwatch.dom.child <-- nodes)
 
-  val view : (Handler[Action], Observable[VNode]) => VNode = (_, nodes) => outwatch.dom.div(outwatch.dom.child <-- nodes)
-
-  def render(view: (Handler[Action], Observable[VNode]) => VNode) : VNode = view(actions, nodes)
+  def render(view: Observable[VNode] => VNode) : VNode = view(nodes)
 
   def apply(): VNode = {
     render(view)

@@ -9,19 +9,18 @@ import scala.language.implicitConversions
 /**
   * Created by marius on 11/06/17.
   */
-final case class Store[State, Action](source: Observable[State], handler: Handler[Action]) {
+final case class Store[State, Action](source: Observable[State], sink: Sink[Action]) {
 
   def subscribe(f: State => Unit): Subscription = source.subscribe(f)
 
-  def share: Store[State, Action] = Store(source.share, handler)
+  def share: Store[State, Action] = Store(source.share, sink)
 
-  def shareReplay(count: Int = 1) = Store(source.publishReplay(1).refCount, handler)
+  def shareReplay(count: Int = 1) = Store(source.publishReplay(1).refCount, sink)
 }
 
 object Store {
 
-  implicit def toSink[Action](store: Store[_, Action]): Sink[Action] = store.handler.sink
-  implicit def toHandler[Action](store: Store[_, Action]): Handler[Action] = store.handler
+  implicit def toSink[Action](store: Store[_, Action]): Sink[Action] = store.sink
   implicit def toSource[State](store: Store[State, _]): Observable[State] = store.source
 
 

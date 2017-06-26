@@ -12,6 +12,8 @@ inThisBuild(Seq(
   )
 ))
 
+val outwatchVersion = "0.10.0-SNAPSHOT"
+
 
 lazy val root = project.in(file("."))
   .aggregate(app, extras, styles, mdl)
@@ -28,7 +30,7 @@ lazy val app = project.in(file("demo-spa")).settings(
 lazy val styles = project.in(file("outwatch-styles")).settings(
   name := "outwatch-styles",
   libraryDependencies ++= 
-    "io.github.outwatch" %%% "outwatch" % "0.10.0-SNAPSHOT" ::
+    "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
     "com.github.japgolly.scalacss" %%% "core"  % "0.5.3" ::
     Nil
 )
@@ -38,7 +40,7 @@ lazy val styles = project.in(file("outwatch-styles")).settings(
 lazy val mdl = project.in(file("outwatch-mdl")).settings(
   name := "outwatch-mdl",
   libraryDependencies ++= 
-    "io.github.outwatch" %%% "outwatch" % "0.10.0-SNAPSHOT" ::
+    "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
     "com.github.japgolly.scalacss" %%% "core"  % "0.5.3" ::
     Nil
 )
@@ -48,7 +50,7 @@ lazy val mdl = project.in(file("outwatch-mdl")).settings(
 lazy val extras = project.in(file("outwatch-extras")).settings(
   name := "outwatch-extras",
   libraryDependencies ++= 
-    "io.github.outwatch" %%% "outwatch" % "0.10.0-SNAPSHOT" ::
+    "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
     "org.scala-lang" % "scala-reflect" % scalaVersion.value ::
     Nil
 )
