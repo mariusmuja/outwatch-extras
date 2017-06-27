@@ -26,26 +26,12 @@ trait Component {
   def init: State
 
   protected def createStore(initActions: Seq[Action]): Store[State, Action] = {
-    val initState = init
     val handler = Handlers.createHandler[Action](initActions :_*)
-    val source = handler
-      .scan(initState)(reducer)
-      .startWith(initState)
-      .publishReplay(1)
-      .refCount
-
-    Store(source, handler)
+    Store(handler, init, reducer).shareReplay()
   }
 
   protected def createStore(initActions: Seq[Action], actions: Observable[Action]): Store[State, Action] = {
-    val initState = init
     val handler = Handlers.createHandler[Action](initActions :_*)
-    val source = handler.merge(actions)
-      .scan(initState)(reducer)
-      .startWith(initState)
-      .publishReplay(1)
-      .refCount
-
-    Store(source, handler)
+    Store(handler, init, actions, reducer).shareReplay()
   }
 }

@@ -1,22 +1,21 @@
 package outwatch.mdl
 
-import org.scalajs.dom.Element
+import org.scalajs.dom
 import outwatch.Sink
-import outwatch.dom.Attributes
+import outwatch.dom.{Attributes, InsertHook}
 
 import scala.scalajs.js
-import scalacss.defaults.Exports.StyleSheet
+import scala.scalajs.js.annotation.JSGlobal
 
 /**
   * Created by marius on 11/06/17.
   */
+trait Mdl {
 
-trait Mdl { self: StyleSheet.Inline =>
-
-  private val upgradeElement = Sink.create[Element] { e =>
+  private val upgradeElement = Sink.create[dom.Element] { e =>
     val componentHandler = js.Dynamic.global.componentHandler
     if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
   }
 
-  val material = Attributes.insert --> upgradeElement
+  val material: InsertHook = Attributes.insert --> upgradeElement
 }

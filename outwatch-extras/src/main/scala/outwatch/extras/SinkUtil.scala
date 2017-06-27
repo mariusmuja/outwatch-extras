@@ -1,5 +1,6 @@
-package outwatch
+package outwatch.extras
 
+import outwatch.Sink
 import outwatch.dom.Handlers
 
 /**

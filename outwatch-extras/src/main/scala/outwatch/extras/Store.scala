@@ -1,9 +1,9 @@
 package outwatch.extras
 
 import outwatch.Sink
-import outwatch.dom.Handlers.createHandler
 import rxscalajs.Observable
 import rxscalajs.subscription.Subscription
+
 import scala.language.implicitConversions
 
 /**
@@ -24,11 +24,31 @@ object Store {
   implicit def toSource[State](store: Store[State, _]): Observable[State] = store.source
 
 
-  def apply[State, Action](handler: Handler[Action], initialState: State, reducer: (State, Action) => State): Store[State, Action] = {
+  def apply[State, Action](
+    handler: Handler[Action],
+    initialState: State,
+    reducer: (State, Action) => State
+  ): Store[State, Action] = {
+
     val source: Observable[State] = handler
       .scan(initialState)(reducer)
       .startWith(initialState)
 
     apply(source, handler)
   }
+
+  def apply[State, Action](
+    handler: Handler[Action],
+    initialState: State,
+    actionSource: Observable[Action],
+    reducer: (State, Action) => State
+  ): Store[State, Action] = {
+
+    val source: Observable[State] = handler.merge(actionSource)
+      .scan(initialState)(reducer)
+      .startWith(initialState)
+
+    apply(source, handler)
+  }
+
 }

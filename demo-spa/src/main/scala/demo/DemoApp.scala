@@ -163,7 +163,7 @@ object TodoModule extends Component with
       case RemoveTodo(todo) => Console.Log(todo.value)
     }
 
-    val actions = SinkUtil.redirectInto(store.sink, loggedActions, parentSink, consoleSink)
+    val actions = SinkUtil.redirectFrom(store.sink, loggedActions, parentSink, consoleSink)
 
     val todoViews = store.source.map(_.todos.map(todoItem(_, actions, stl)))
 
@@ -230,7 +230,9 @@ object TodoComponent extends Component {
 
 
 
-object Router extends Router {
+object Router extends router.Router {
+
+  import router.BaseUrl
 
   sealed trait Page
   object TodoPage extends Page

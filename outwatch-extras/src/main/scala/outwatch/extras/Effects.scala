@@ -9,18 +9,17 @@ import rxscalajs.Observable
   */
 trait Effects {
 
-
   type Effect
   type EffectResult
 
   type EffectSink = Sink[Effect]
-//  type EffectResultSource = Observable[EffectResult]
+  type EffectResultSource = Observable[EffectResult]
 
   private val handler = Handlers.createHandler[Effect]()
 
   val sink: EffectSink = handler
 
-  val source: Observable[EffectResult] = handler.flatMap(effects).share
+  val source: EffectResultSource = handler.switchMap(effects).share
 
   def effects: Effect => Observable[EffectResult]
 }
