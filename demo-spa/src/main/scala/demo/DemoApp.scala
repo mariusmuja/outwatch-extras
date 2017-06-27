@@ -38,14 +38,14 @@ object Logger extends Component with
 
   def init = State()
 
-  def view(store: Store[State, Action], router: Router.PageSink)(implicit stl: Style): VNode = {
+  def view(store: Store[State, Action])(implicit stl: Style): VNode = {
     import outwatch.dom._
 
     div(
       div(
         input(value <-- store.map(_.log.lastOption.getOrElse(""))),
         button(
-          click(Router.LogPage(1).withReplace) --> router, "Goto"
+          click(Router.LogPage(1).withReplace) --> Router.sink, "Goto"
         )
       ),
       div(
@@ -56,13 +56,18 @@ object Logger extends Component with
     )
   }
 
-  def apply(router: Router.PageSink, initActions: Action*): VNode = {
-    view(createStore(initActions), router)
+  def apply(initActions: Action*): VNode = {
+    view(createStore(initActions))
   }
 
-  def withSink(router: Router.PageSink, initActions: Action*): (VNode, ActionSink) = {
-    val store = createStore(initActions)
-    view(store, router) -> store.sink
+  def withSink(initActions: Action*): (VNode, ActionSink) = {
+
+    val consoleActions = Console.source.map {
+      case Console.Line(str) => LogAction(str)
+    }
+
+    val store = createStore(initActions, consoleActions)
+    view(store) -> store.sink
   }
 }
 
@@ -140,7 +145,7 @@ object TodoModule extends Component with
 
   def init = State()
 
-  def view(store: Store[State, Action], routes: Router.PageSink, logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit stl: Style): VNode = {
+  def view(store: Store[State, Action], logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit stl: Style): VNode = {
     import outwatch.dom._
 
     val loggedActions = logger.redirectMap[Action]{
@@ -151,7 +156,6 @@ object TodoModule extends Component with
       case AddTodo(value) => TodoComponent.AddTodo(value)
       case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
     }
-
     val consoleSink = Console.sink.redirectMap[Action] {
       case AddTodo(value) => Console.Log(value)
       case RemoveTodo(todo) => Console.Log(todo.value)
@@ -164,17 +168,16 @@ object TodoModule extends Component with
     div(
       TextField(actions.redirectMap(AddTodo)),
       button(stl.button, stl.material,
-        click(Router.LogPage(10)) --> routes, "Log only"
+        click(Router.LogPage(10)) --> Router.sink, "Log only"
       ),
       ul(children <-- todoViews)
     )
   }
 
-  def apply(router: Router.PageSink,
-            logger: Logger.ActionSink,
+  def apply(logger: Logger.ActionSink,
             parent: TodoComponent.ActionSink,
             initActions: Action*): VNode = {
-    view(createStore(initActions), router, logger, parent)
+    view(createStore(initActions), logger, parent)
   }
 }
 
@@ -195,10 +198,10 @@ object TodoComponent extends Component {
 
   def init = State()
 
-  def view(store: Store[State, Action], router: Router.PageSink): VNode = {
+  def view(store: Store[State, Action]): VNode = {
     import outwatch.dom._
 
-    val (logger, loggerSink) = Logger.withSink(router)
+    val (logger, loggerSink) = Logger.withSink()
 
     table(
       tbody(
@@ -206,8 +209,8 @@ object TodoComponent extends Component {
           td("Last action: ", child <-- store.map(_.lastAction))
         ),
         tr(
-          td(TodoModule(router, loggerSink, store.sink)),
-          td(TodoModule(router, loggerSink, store.sink))
+          td(TodoModule(loggerSink, store.sink)),
+          td(TodoModule(loggerSink, store.sink))
         ),
         tr(
           td(logger)
@@ -216,8 +219,8 @@ object TodoComponent extends Component {
     )
   }
 
-  def apply(router: Router.PageSink, initActions: Action*): VNode = {
-    view(createStore(initActions), router)
+  def apply(initActions: Action*): VNode = {
+    view(createStore(initActions))
   }
 
 }
@@ -243,8 +246,8 @@ object Router extends Router {
     import builder._
 
     builder.rules(
-      ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(routerActions, Logger.Init("Init logger: " + p)) },
-      "todo".const(TodoPage) ~> TodoComponent(routerActions),
+      ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
+      "todo".const(TodoPage) ~> TodoComponent(),
       "log".const(Unit) ~> LogPage(11).withReplace
     )
       .notFound(TodoPage.withReplace)
@@ -252,28 +255,21 @@ object Router extends Router {
 }
 
 
-object Console {
+object Console extends Effects {
 
-  type EffectSink = Sink[Effect]
-
-  trait Effect
   case class Log(str: String) extends Effect
+  case class Log2(str: String) extends Effect
 
-  trait EffectResult
-  object EffectResult {
-    object None extends EffectResult
-  }
+  case class Line(str: String) extends EffectResult
 
+  def Total(f : Effect => Observable[EffectResult]) = f
 
   def effects: Effect => Observable[EffectResult] = {
     case Log(str) =>
       console.log("Log effect" + str)
-      Observable.just(EffectResult.None)
+      Observable.just(Line(str)).delay(1000)
   }
 
-  val sink = Handlers.createHandler[Effect]()
-
-  val source: Observable[EffectResult] = sink.switchMap(effects)
 }
 
 

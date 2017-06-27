@@ -2,6 +2,7 @@ package outwatch.extras
 
 import outwatch.Sink
 import outwatch.dom.Handlers
+import rxscalajs.Observable
 
 
 /**
@@ -38,6 +39,17 @@ trait Component {
     val initActionsOrNop = if (initActions.isEmpty) Seq(Action.Nop) else initActions
     val handler = Handlers.createHandler[Action](initActionsOrNop :_*)
     val source = handler
+      .scan(init)(reducer)
+      .publishReplay(1)
+      .refCount
+
+    Store(source, handler)
+  }
+
+  protected def createStore(initActions: Seq[Action], actions: Observable[Action]): Store[State, Action] = {
+    val initActionsOrNop = if (initActions.isEmpty) Seq(Action.Nop) else initActions
+    val handler = Handlers.createHandler[Action](initActionsOrNop :_*)
+    val source = handler.merge(actions)
       .scan(init)(reducer)
       .publishReplay(1)
       .refCount

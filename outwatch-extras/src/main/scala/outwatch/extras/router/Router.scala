@@ -2,7 +2,7 @@ package outwatch.extras.router
 
 import org.scalajs.dom
 import outwatch.Sink
-import outwatch.dom.{Handlers, VNode}
+import outwatch.dom.{Emitter, Handlers, VNode}
 import rxscalajs.Observable
 
 import scala.language.implicitConversions
@@ -27,6 +27,11 @@ trait Router {
 
   protected val routerActions = Handlers.createHandler[Page]()
 
+  val sink : PageSink = routerActions
+
+  def setOnClick(page: Page): Emitter = {
+    outwatch.dom.click(page) --> sink
+  }
 
   protected case class Redirect[P](page: P)
 
