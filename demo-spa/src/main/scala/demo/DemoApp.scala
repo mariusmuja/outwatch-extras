@@ -18,6 +18,7 @@ import scalacss.DevDefaults._
 
 object Logger extends Component with
                       LogAreaStyle {
+  sealed trait Action
   case class Init(message: String) extends Action
   case class LogAction(action: String) extends Action
 
@@ -45,7 +46,7 @@ object Logger extends Component with
       div(
         input(value <-- store.map(_.log.lastOption.getOrElse(""))),
         button(
-          click(Router.LogPage(1).withReplace) --> Router.sink, "Goto"
+          click --> Router.replace(Router.LogPage(1)), "Goto"
         )
       ),
       div(
@@ -67,7 +68,7 @@ object Logger extends Component with
     }
 
     val store = createStore(initActions, consoleActions)
-    view(store) -> store.sink
+    (view(store), store.sink)
   }
 }
 
@@ -117,6 +118,7 @@ object TextField extends TextFieldStyle {
 object TodoModule extends Component with
                           TodoModuleStyle {
 
+  sealed trait Action
   case class AddTodo(value: String) extends Action
   case class RemoveTodo(todo: Todo) extends Action
 
@@ -168,7 +170,7 @@ object TodoModule extends Component with
     div(
       TextField(actions.redirectMap(AddTodo)),
       button(stl.button, stl.material,
-        click(Router.LogPage(10)) --> Router.sink, "Log only"
+        click --> Router.set(Router.LogPage(10)), "Log only"
       ),
       ul(children <-- todoViews)
     )
@@ -183,6 +185,7 @@ object TodoModule extends Component with
 
 object TodoComponent extends Component {
 
+  sealed trait Action
   case class AddTodo(value: String) extends Action
   case class RemoveTodo(value: String) extends Action
 
@@ -229,6 +232,7 @@ object TodoComponent extends Component {
 
 object Router extends Router {
 
+  sealed trait Page
   object TodoPage extends Page
   case class LogPage(last: Int) extends Page
 
@@ -248,21 +252,20 @@ object Router extends Router {
     builder.rules(
       ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
       "todo".const(TodoPage) ~> TodoComponent(),
-      "log".const(Unit) ~> LogPage(11).withReplace
+      "log".const(Unit) ~>  Redirect(LogPage(11), replace = true)
     )
-      .notFound(TodoPage.withReplace)
+      .notFound(Redirect(TodoPage, replace = true))
   }
 }
 
 
 object Console extends Effects {
 
+  sealed trait Effect
   case class Log(str: String) extends Effect
-  case class Log2(str: String) extends Effect
 
+  sealed trait EffectResult
   case class Line(str: String) extends EffectResult
-
-  def Total(f : Effect => Observable[EffectResult]) = f
 
   def effects: Effect => Observable[EffectResult] = {
     case Log(str) =>

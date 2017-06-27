@@ -11,9 +11,9 @@ trait Effects {
 
   type EffectSink = Sink[Effect]
 
-  protected trait Effect
+  type Effect
 
-  protected trait EffectResult
+  type EffectResult
 
   private val handler = Handlers.createHandler[Effect]()
 

@@ -1,6 +1,7 @@
 package outwatch.extras.router
 
 import org.scalajs.dom
+import org.scalajs.dom.MouseEvent
 import outwatch.Sink
 import outwatch.dom.{Emitter, Handlers, VNode}
 import rxscalajs.Observable
@@ -15,25 +16,18 @@ import scala.scalajs.js
 
 trait Router {
 
-  protected trait Page
-  object Page {
-    case class Replace(page: Page) extends Page
-    implicit class toReplace(p: Page) {
-      def withReplace = Replace(p)
-    }
-  }
+  type Page
 
-  type PageSink = Sink[Page]
+  case class Redirect[+Page](page: Page, replace: Boolean = false)
 
-  protected val routerActions = Handlers.createHandler[Page]()
+  private val pageHandler = Handlers.createHandler[Redirect[Page]]()
 
-  val sink : PageSink = routerActions
+  val sink : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
+  val redirectSink : Sink[Redirect[Page]] = pageHandler
 
-  def setOnClick(page: Page): Emitter = {
-    outwatch.dom.click(page) --> sink
-  }
+  def replace(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page, replace = true))
 
-  protected case class Redirect[P](page: P)
+  def set(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page))
 
   protected type Parsed[Page] = Either[Redirect[Page], Page]
 
@@ -43,7 +37,7 @@ trait Router {
     target: Page => Option[VNode]
   )
 
-  protected class RouterConfig[Page](rules: Seq[Rule[Page]], val notFound: Parsed[Page]) {
+  protected class RouterConfig[Page](rules: Seq[Rule[Page]], notFound: Parsed[Page]) {
 
     private def findFirst[T, R](list: List[T => Option[R]])(arg: T): Option[R] = {
       list match {
@@ -54,7 +48,7 @@ trait Router {
       }
     }
 
-    def parse(path: Path): Option[Parsed[Page]] = findFirst(rules.map(_.parse).toList)(path)
+    def parse(path: Path): Parsed[Page] = findFirst(rules.map(_.parse).toList)(path).getOrElse(notFound)
 
     def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
 
@@ -65,21 +59,19 @@ trait Router {
 
     case class RouterConfigBuilder[Page](rules: Seq[Rule[Page]]) extends PathParser {
 
-      implicit def toFunc[P](f: => VNode): P => VNode = _ => f
-      implicit def toPage[P, P2 <: Page](f: => P2): P => P2 = _ => f
+      implicit def toVNodeFunc[P](f: => VNode): P => VNode = _ => f
 
       implicit class route[P <: Page](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
-
-        def ~>(f: => P => VNode) : Rule[Page] = Rule(
+        def ~>(f: => P => VNode): Rule[Page] = Rule(
           p => rf.route.parse(p).map(p => Right(p)),
           p => ct.unapply(p).map(rf.route.pathFor),
           p => ct.unapply(p).map(f)
         )
       }
 
-      implicit class redirect[P](rf: RouteFragment[P]) {
-        def ~>[P2 <: Page](f: => P => P2) : Rule[Page] = Rule(
-          p => rf.route.parse(p).map(p => Left(Redirect(f(p)))),
+      implicit class toRedirect[P](rf: RouteFragment[P]) {
+        def ~>[P2 <: Page](f: => Redirect[P2]): Rule[P2] = Rule(
+          p => rf.route.parse(p).map(p => Left(f)),
           p => None,
           p => None
         )
@@ -87,7 +79,7 @@ trait Router {
 
       def rules(r: Rule[Page]*): RouterConfigBuilder[Page] = this.copy(rules = r)
 
-      def notFound(page: Page) = new RouterConfig[Page](rules, Left(Redirect(page)))
+      def notFound(page: Redirect[Page]) = new RouterConfig[Page](rules, Left(page))
     }
 
     def apply(builder: (RouterConfigBuilder[Page]) => RouterConfig[Page]): RouterConfig[Page] =
@@ -102,9 +94,7 @@ trait Router {
 
   private def parseUrl(absUrl: AbsUrl): Parsed[Page] = {
     val path = Path(absUrl.value.replaceFirst(baseUrl.value, ""))
-    val parsed = config.parse(path).getOrElse(
-      config.notFound
-    )
+    val parsed = config.parse(path)
     parsed
   }
 
@@ -113,23 +103,27 @@ trait Router {
     path.abs(baseUrl)
   }
 
+  protected def missingRuleFor(page: Page): VNode = {
+    outwatch.dom.div(s"Page not found, check the routes config")
+  }
+
   private def pageToNode(page: Page) : VNode = {
-    config.target(page).getOrElse {
-      outwatch.dom.div(s"Page not found, check the routes config")
-    }
+    config.target(page).getOrElse(missingRuleFor(page))
   }
 
   private def parsedToNodeWithEffects[S](parsed: Parsed[Page]) : VNode = {
-    parsed match {
+    val page = parsed match {
       case Right(page) =>
-        pageToNode(page)
-      case Left(Redirect(Page.Replace(page))) =>
+        page
+      case Left(Redirect(page, true)) =>
         dom.window.history.replaceState("", "", pageToUrl(page).value)
-        pageToNode(page)
-      case Left(Redirect(page)) =>
+        page
+      case Left(Redirect(page, false)) =>
         dom.window.history.pushState("", "", pageToUrl(page).value)
-        pageToNode(page)
+        page
     }
+
+    pageToNode(page)
   }
 
   private def fromEvent(target: dom.EventTarget, event: String): Observable[dom.Event] =
@@ -151,7 +145,7 @@ trait Router {
 
   private val nodes = popStateObservable
     .merge(
-      routerActions.map(p => Left(Redirect(p)))
+      pageHandler.map(r => Left(r))
     )
     .map(parsedToNodeWithEffects)
 

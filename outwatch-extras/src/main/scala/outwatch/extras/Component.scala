@@ -11,35 +11,26 @@ import rxscalajs.Observable
 
 trait Component {
 
-  protected trait Action
-
+  type Action
   type ActionSink = Sink[Action]
 
-  private object Action {
-    object Nop extends Action
-  }
-
   protected trait StateLike[State] {
-    def evolve : PartialFunction[Action, State]
+    def evolve : Action => State
   }
 
   protected type ComponentState = StateLike[State]
   protected type State <: ComponentState
 
-  private type Reducer = (State, Action) =>  State
-
-  private val reducer: Reducer = {
-    case (state, action) if state.evolve.isDefinedAt(action) => state.evolve(action)
-    case (state, _) => state
-  }
+  private val reducer: (State, Action) =>  State = (state, action) => state.evolve(action)
 
   def init: State
 
   protected def createStore(initActions: Seq[Action]): Store[State, Action] = {
-    val initActionsOrNop = if (initActions.isEmpty) Seq(Action.Nop) else initActions
-    val handler = Handlers.createHandler[Action](initActionsOrNop :_*)
+    val initState = init
+    val handler = Handlers.createHandler[Action](initActions :_*)
     val source = handler
-      .scan(init)(reducer)
+      .scan(initState)(reducer)
+      .startWith(initState)
       .publishReplay(1)
       .refCount
 
@@ -47,10 +38,11 @@ trait Component {
   }
 
   protected def createStore(initActions: Seq[Action], actions: Observable[Action]): Store[State, Action] = {
-    val initActionsOrNop = if (initActions.isEmpty) Seq(Action.Nop) else initActions
-    val handler = Handlers.createHandler[Action](initActionsOrNop :_*)
+    val initState = init
+    val handler = Handlers.createHandler[Action](initActions :_*)
     val source = handler.merge(actions)
-      .scan(init)(reducer)
+      .scan(initState)(reducer)
+      .startWith(initState)
       .publishReplay(1)
       .refCount
 
