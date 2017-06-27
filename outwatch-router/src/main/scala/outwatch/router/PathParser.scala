@@ -1,4 +1,4 @@
-package outwatch.extras.router
+package outwatch.router
 
 import java.util.UUID
 import java.util.regex.{Matcher, Pattern}
@@ -7,10 +7,6 @@ import scala.language.experimental.macros
 import scala.language.{higherKinds, implicitConversions}
 
 
-
-/**
-  * Created by marius on 13/06/17.
-  */
 trait PathParser {
 
   private val regexEscape1 = """([-()\[\]{}+?*.$\^|,:#<!\\])""".r

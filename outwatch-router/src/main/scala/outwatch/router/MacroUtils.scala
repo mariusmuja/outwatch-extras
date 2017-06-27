@@ -1,4 +1,4 @@
-package outwatch.extras.router
+package outwatch.router
 
 import scala.reflect.macros.blackbox.Context
 

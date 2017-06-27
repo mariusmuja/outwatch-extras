@@ -23,7 +23,7 @@ lazy val app = project.in(file("demo-spa")).settings(
   name := "demo-spa",
   jsEnv := PhantomJSEnv().value,
   useYarn := true
-).dependsOn(extras, styles, mdl)
+).dependsOn(extras, styles, mdl, router)
   .enablePlugins(ScalaJSBundlerPlugin)
 
 
@@ -41,7 +41,15 @@ lazy val mdl = project.in(file("outwatch-mdl")).settings(
   name := "outwatch-mdl",
   libraryDependencies ++= 
     "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
-    "com.github.japgolly.scalacss" %%% "core"  % "0.5.3" ::
+    Nil
+)
+  .enablePlugins(ScalaJSPlugin)
+
+lazy val router = project.in(file("outwatch-router")).settings(
+  name := "outwatch-router",
+  libraryDependencies ++= 
+    "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
+    "org.scala-lang" % "scala-reflect" % scalaVersion.value ::
     Nil
 )
   .enablePlugins(ScalaJSPlugin)
@@ -51,9 +59,7 @@ lazy val extras = project.in(file("outwatch-extras")).settings(
   name := "outwatch-extras",
   libraryDependencies ++= 
     "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
-    "org.scala-lang" % "scala-reflect" % scalaVersion.value ::
     Nil
 )
-  .dependsOn(styles)
   .enablePlugins(ScalaJSPlugin)
 

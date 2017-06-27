@@ -1,9 +1,9 @@
-package outwatch.extras.router
+package outwatch.router
 
 import org.scalajs.dom
 import org.scalajs.dom.MouseEvent
 import outwatch.Sink
-import outwatch.dom.{Emitter, Handlers, VNode}
+import outwatch.dom.{Handlers, VNode}
 import rxscalajs.Observable
 
 import scala.language.implicitConversions

@@ -1,5 +1,4 @@
-package outwatch.extras.router
-
+package outwatch.router
 
 import org.scalajs.dom
 
