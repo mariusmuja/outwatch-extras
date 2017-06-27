@@ -1,6 +1,7 @@
 package demo
 
 import demo.styles._
+import org.scalajs.dom
 import org.scalajs.dom.console
 import outwatch.Sink
 import outwatch.dom.VNode
@@ -63,8 +64,8 @@ object Logger extends Component with
 
   def withSink(initActions: Action*): (VNode, ActionSink) = {
 
-    val consoleActions = Console.source.map {
-      case Console.Line(str) => LogAction(str)
+    val consoleActions = Console.sourceMerge.map {
+      case Console.Output(str) => LogAction(str)
     }
 
     val store = createStore(initActions, consoleActions)
@@ -248,17 +249,23 @@ object Router extends router.Router {
     )
   }
 
-  val config = RouterConfig{ builder =>
-
+  val config = RouterConfig { builder =>
     import builder._
 
     builder.rules(
       ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
       "todo".const(TodoPage) ~> TodoComponent(),
-      "log".const(Unit) ~>  Redirect(LogPage(11), replace = true)
+      "log".const(Unit) ~> Redirect(LogPage(11), replace = true)
     )
       .notFound(Redirect(TodoPage, replace = true))
   }
+
+
+  override def onPageChange = {
+    case TodoPage => dom.document.title = "TODO list"
+    case LogPage(_) => dom.document.title = "Log page"
+  }
+
 }
 
 
@@ -268,14 +275,12 @@ object Console extends Effects {
   case class Log(str: String) extends Effect
 
   sealed trait EffectResult
-  case class Line(str: String) extends EffectResult
+  case class Output(str: String) extends EffectResult
 
   def effects: Effect => Observable[EffectResult] = {
     case Log(str) =>
-      console.log("Log effect" + str)
-      Observable.just(Line(str)).delay(1000)
+      Observable.just(Output(str)).delay(1000)
   }
-
 }
 
 

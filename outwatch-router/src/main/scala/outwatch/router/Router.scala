@@ -111,6 +111,9 @@ trait Router {
     config.target(page).getOrElse(missingRuleFor(page))
   }
 
+
+  def onPageChange: (Page => Unit) = _ => ()
+
   private def parsedToNodeWithEffects[S](parsed: Parsed[Page]) : VNode = {
     val page = parsed match {
       case Right(page) =>
@@ -123,6 +126,7 @@ trait Router {
         page
     }
 
+    onPageChange(page)
     pageToNode(page)
   }
 
