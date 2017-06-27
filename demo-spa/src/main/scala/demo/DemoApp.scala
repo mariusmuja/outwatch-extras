@@ -2,7 +2,7 @@ package demo
 
 import demo.styles._
 import org.scalajs.dom.console
-import outwatch.dom.{Handlers, VNode}
+import outwatch.dom.VNode
 import outwatch.extras._
 import outwatch.extras.router._
 import outwatch.styles.Styles
