@@ -1,20 +1,15 @@
 package demo
 
 import demo.styles._
-import org.scalajs.dom
-import org.scalajs.dom.{Event, EventTarget, console}
-import outwatch.{Sink, SinkUtil}
+import org.scalajs.dom.console
 import outwatch.dom.{Handlers, VNode}
 import outwatch.extras._
 import outwatch.extras.router._
 import outwatch.styles.Styles
+import outwatch.{Sink, SinkUtil}
 import rxscalajs.Observable
-import rxscalajs.Observable.Creator
 
-import scala.concurrent.duration._
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
-import scala.scalajs.js
 import scala.scalajs.js.{Date, JSApp}
 import scala.util.Random
 import scalacss.DevDefaults._
@@ -62,11 +57,11 @@ object Logger extends Component with
   }
 
   def apply(router: Router.PageSink, initActions: Action*): VNode = {
-    view(mkStore(initActions), router)
+    view(createStore(initActions), router)
   }
 
   def withSink(router: Router.PageSink, initActions: Action*): (VNode, ActionSink) = {
-    val store = mkStore(initActions)
+    val store = createStore(initActions)
     view(store, router) -> store.sink
   }
 }
@@ -157,7 +152,12 @@ object TodoModule extends Component with
       case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
     }
 
-    val actions = SinkUtil.redirectInto(store.sink, loggedActions, parentSink)
+    val consoleSink = Console.sink.redirectMap[Action] {
+      case AddTodo(value) => Console.Log(value)
+      case RemoveTodo(todo) => Console.Log(todo.value)
+    }
+
+    val actions = SinkUtil.redirectInto(store.sink, loggedActions, parentSink, consoleSink)
 
     val todoViews = store.source.map(_.todos.map(todoItem(_, actions, stl)))
 
@@ -174,7 +174,7 @@ object TodoModule extends Component with
             logger: Logger.ActionSink,
             parent: TodoComponent.ActionSink,
             initActions: Action*): VNode = {
-    view(mkStore(initActions), router, logger, parent)
+    view(createStore(initActions), router, logger, parent)
   }
 }
 
@@ -195,7 +195,7 @@ object TodoComponent extends Component {
 
   def init = State()
 
-  def view(store: Store[State, Action], router: Sink[Router.Page]): VNode = {
+  def view(store: Store[State, Action], router: Router.PageSink): VNode = {
     import outwatch.dom._
 
     val (logger, loggerSink) = Logger.withSink(router)
@@ -217,7 +217,7 @@ object TodoComponent extends Component {
   }
 
   def apply(router: Router.PageSink, initActions: Action*): VNode = {
-    view(mkStore(initActions), router)
+    view(createStore(initActions), router)
   }
 
 }
@@ -229,7 +229,7 @@ object Router extends Router {
   object TodoPage extends Page
   case class LogPage(last: Int) extends Page
 
-  val baseUrl = BaseUrl.until_# + "#"
+  val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
   override def baseLayout(node: Observable[VNode]) : VNode = {
     import outwatch.dom._
@@ -239,16 +239,41 @@ object Router extends Router {
     )
   }
 
-  val config = RouterConfig{ dsl =>
-    import dsl._
+  val config = RouterConfig{ builder =>
+    import builder._
 
-    dsl.rules(
+    builder.rules(
       ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(routerActions, Logger.Init("Init logger: " + p)) },
       "todo".const(TodoPage) ~> TodoComponent(routerActions),
       "log".const(Unit) ~> LogPage(11).withReplace
     )
       .notFound(TodoPage.withReplace)
   }
+}
+
+
+object Console {
+
+  type EffectSink = Sink[Effect]
+
+  trait Effect
+  case class Log(str: String) extends Effect
+
+  trait EffectResult
+  object EffectResult {
+    object None extends EffectResult
+  }
+
+
+  def effects: Effect => Observable[EffectResult] = {
+    case Log(str) =>
+      console.log("Log effect" + str)
+      Observable.just(EffectResult.None)
+  }
+
+  val sink = Handlers.createHandler[Effect]()
+
+  val source: Observable[EffectResult] = sink.switchMap(effects)
 }
 
 

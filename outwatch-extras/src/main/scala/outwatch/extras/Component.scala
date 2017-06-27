@@ -10,11 +10,11 @@ import outwatch.dom.Handlers
 
 trait Component {
 
-  trait Action
+  protected trait Action
 
   type ActionSink = Sink[Action]
 
-  object Action {
+  private object Action {
     object Nop extends Action
   }
 
@@ -22,10 +22,10 @@ trait Component {
     def evolve : PartialFunction[Action, State]
   }
 
-  type ComponentState = StateLike[State]
-  type State <: ComponentState
+  protected type ComponentState = StateLike[State]
+  protected type State <: ComponentState
 
-  type Reducer = (State, Action) =>  State
+  private type Reducer = (State, Action) =>  State
 
   private val reducer: Reducer = {
     case (state, action) if state.evolve.isDefinedAt(action) => state.evolve(action)
@@ -34,18 +34,7 @@ trait Component {
 
   def init: State
 
-  protected def store(handler: Handler[Action], initState: State): Store[State, Action] = {
-
-//    val initActionsOrNop = if (initActions.isEmpty) Seq(Action.Nop) else initActions
-    val source = handler//.startWithMany(initActionsOrNop : _*)
-      .scan(initState)(reducer)
-      .publishReplay(1)
-      .refCount
-
-    Store(source, handler)
-  }
-
-  protected def mkStore(initActions: Seq[Action]): Store[State, Action] = {
+  protected def createStore(initActions: Seq[Action]): Store[State, Action] = {
     val initActionsOrNop = if (initActions.isEmpty) Seq(Action.Nop) else initActions
     val handler = Handlers.createHandler[Action](initActionsOrNop :_*)
     val source = handler
