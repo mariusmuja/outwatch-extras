@@ -2,11 +2,11 @@ package demo
 
 import demo.styles._
 import org.scalajs.dom.console
+import outwatch.Sink
 import outwatch.dom.VNode
 import outwatch.extras._
-import outwatch.extras.router._
+import outwatch.router
 import outwatch.styles.Styles
-import outwatch.{Sink, SinkUtil}
 import rxscalajs.Observable
 
 import scala.language.implicitConversions
@@ -249,6 +249,7 @@ object Router extends router.Router {
   }
 
   val config = RouterConfig{ builder =>
+
     import builder._
 
     builder.rules(
