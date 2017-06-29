@@ -25,7 +25,7 @@ val noPublish = Seq(
 )
 
 lazy val root = project.in(file("."))
-  .aggregate(app, extras, styles, mdl, router)
+  .aggregate(app, redux, styles, mdl, router)
   .settings(noPublish: _*)
 
 
@@ -36,7 +36,7 @@ lazy val app = project.in(file("demo-spa"))
     useYarn := true
   )
   .settings(noPublish: _*)
-  .dependsOn(extras, styles, mdl, router)
+  .dependsOn(redux, styles, mdl, router)
   .enablePlugins(ScalaJSBundlerPlugin)
 
 
@@ -71,9 +71,9 @@ lazy val router = project.in(file("outwatch-router"))
   .enablePlugins(ScalaJSPlugin)
 
 
-lazy val extras = project.in(file("outwatch-extras"))
+lazy val redux = project.in(file("outwatch-redux"))
   .settings(
-    name := "outwatch-extras",
+    name := "outwatch-redux",
     libraryDependencies ++=
       "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
         Nil
