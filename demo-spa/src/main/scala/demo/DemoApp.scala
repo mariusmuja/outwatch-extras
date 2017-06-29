@@ -6,11 +6,10 @@ import org.scalajs.dom.console
 import outwatch.Sink
 import outwatch.dom.VNode
 import outwatch.extras._
-import outwatch.router
+import outwatch.router.{BaseUrl, Router => OutwatchRouter}
 import outwatch.styles.Styles
 import rxscalajs.Observable
 
-import scala.language.implicitConversions
 import scala.scalajs.js.{Date, JSApp}
 import scala.util.Random
 import scalacss.DevDefaults._
@@ -164,7 +163,7 @@ object TodoModule extends Component with
       case RemoveTodo(todo) => Console.Log(todo.value)
     }
 
-    val actions = SinkUtil.redirectFrom(store.sink, loggedActions, parentSink, consoleSink)
+    val actions = SinkUtil.redirectInto(store.sink, loggedActions, parentSink, consoleSink)
 
     val todoViews = store.source.map(_.todos.map(todoItem(_, actions, stl)))
 
@@ -231,9 +230,7 @@ object TodoComponent extends Component {
 
 
 
-object Router extends router.Router {
-
-  import router.BaseUrl
+object Router extends OutwatchRouter {
 
   sealed trait Page
   object TodoPage extends Page
@@ -265,7 +262,6 @@ object Router extends router.Router {
     case TodoPage => dom.document.title = "TODO list"
     case LogPage(_) => dom.document.title = "Log page"
   }
-
 }
 
 

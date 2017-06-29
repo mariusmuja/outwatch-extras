@@ -10,9 +10,9 @@ import scalacss.defaults.Exports.StyleA
   */
 trait ComponentStyle {
 
-  val StyleSheet = scalacss.defaults.Exports.StyleSheet
+  type StyleSheet = scalacss.defaults.Exports.StyleSheet.Inline
 
-  type Style <: StyleSheet.Inline
+  type Style <: StyleSheet
 
   implicit def styleToAttr(styleA: StyleA): Attribute = {
     Attributes.`class` := styleA.htmlClass

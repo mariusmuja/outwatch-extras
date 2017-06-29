@@ -114,7 +114,7 @@ trait Router {
 
   def onPageChange: (Page => Unit) = _ => ()
 
-  private def parsedToNodeWithEffects[S](parsed: Parsed[Page]) : VNode = {
+  private def parsedToPageWithEffects[S](parsed: Parsed[Page]) : Page  = {
     val page = parsed match {
       case Right(page) =>
         page
@@ -125,9 +125,7 @@ trait Router {
         dom.window.history.pushState("", "", pageToUrl(page).value)
         page
     }
-
-    onPageChange(page)
-    pageToNode(page)
+    page
   }
 
   private def fromEvent(target: dom.EventTarget, event: String): Observable[dom.Event] =
@@ -146,16 +144,20 @@ trait Router {
     .map { _ => AbsUrl.fromWindow }
     .map(parseUrl)
 
-
-  private val nodes = popStateObservable
+  val pageChangeSource = popStateObservable
     .merge(
       pageHandler.map(r => Left(r))
     )
-    .map(parsedToNodeWithEffects)
+    .map(parsedToPageWithEffects)
 
-  def baseLayout(node: Observable[VNode]): VNode = {
-    outwatch.dom.div(outwatch.dom.child <-- node)
+  private val vnodeSource = pageChangeSource.map { page =>
+    onPageChange(page)
+    pageToNode(page)
   }
 
-  def apply(): VNode = baseLayout(nodes)
+  def baseLayout(vnode: Observable[VNode]): VNode = {
+    outwatch.dom.div(outwatch.dom.child <-- vnode)
+  }
+
+  def apply(): VNode = baseLayout(vnodeSource)
 }

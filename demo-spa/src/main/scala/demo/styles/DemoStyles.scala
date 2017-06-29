@@ -6,7 +6,7 @@ import scalacss.DevDefaults._
 
 trait LogAreaStyle extends ComponentStyle {
 
-  class Style extends StyleSheet.Inline with MdlStyles {
+  class Style extends StyleSheet with MdlStyles {
 
     import dsl._
 
@@ -28,7 +28,7 @@ trait LogAreaStyle extends ComponentStyle {
 
 trait TextFieldStyle extends ComponentStyle {
 
-  class Style extends StyleSheet.Inline with MdlStyles {
+  class Style extends StyleSheet with MdlStyles {
 
     import dsl._
 
@@ -57,7 +57,7 @@ trait TextFieldStyle extends ComponentStyle {
 
 trait TodoModuleStyle extends ComponentStyle {
 
-  class Style extends StyleSheet.Inline with MdlStyles {
+  class Style extends StyleSheet with MdlStyles {
 
     import dsl._
 

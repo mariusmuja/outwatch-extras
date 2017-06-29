@@ -8,9 +8,10 @@ import outwatch.dom.Handlers
   */
 object SinkUtil {
 
-  def redirectFrom[A](sinks: Sink[A]*): Sink[A] = {
-    val handler = Handlers.createHandler[A]()
-    val subscriptions = sinks.map(sink => sink <-- handler)
+  def redirectInto[T](sink1: Sink[T], sink2: Sink[T], otherSinks: Sink[T]*): Sink[T] = {
+    val handler = Handlers.createHandler[T]()
+    val sinks = Seq(sink1, sink2) ++ otherSinks
+    sinks.foreach(_ <-- handler)
     handler
   }
 }
