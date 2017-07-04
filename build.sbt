@@ -33,7 +33,8 @@ lazy val app = project.in(file("demo-spa"))
   .settings(
     name := "demo-spa",
     jsEnv := PhantomJSEnv().value,
-    useYarn := true
+    useYarn := true,
+    scalaJSUseMainModuleInitializer := true
   )
   .settings(noPublish: _*)
   .dependsOn(redux, styles, mdl, router)

@@ -5,7 +5,7 @@ import org.scalajs.dom
 import org.scalajs.dom.console
 import outwatch.Sink
 import outwatch.dom.VNode
-import outwatch.extras._
+import outwatch.redux._
 import outwatch.router.{BaseUrl, Router => OutwatchRouter}
 import outwatch.styles.Styles
 import rxscalajs.Observable
@@ -280,11 +280,10 @@ object Console extends Effects {
 }
 
 
-object DemoApp extends JSApp {
-
+object DemoApp{
   import outwatch.dom.OutWatch
 
-  def main(): Unit = {
+  def main(args: Array[String]): Unit = {
     Styles.subscribe(_.addToDocument())
 
     OutWatch.render("#app", Router())
