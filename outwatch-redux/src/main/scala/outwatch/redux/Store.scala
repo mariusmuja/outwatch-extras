@@ -1,4 +1,4 @@
-package outwatch.extras
+package outwatch.redux
 
 import outwatch.Sink
 import rxscalajs.Observable
