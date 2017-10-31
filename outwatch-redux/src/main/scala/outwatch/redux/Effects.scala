@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 
 trait Effects[Effect, EffectResult] {
 
-  private val handler = Handlers.createHandler[Effect]().value.unsafeRunSync()
+  private val handler = Handlers.createHandler[Effect]().unsafeRunSync()
 
   val sink: Sink[Effect] = handler
 

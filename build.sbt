@@ -18,7 +18,7 @@ inThisBuild(Seq(
 
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 
-val outwatchVersion = "0.11-SNAPSHOT"
+val outwatchVersion = "0.11.1-SNAPSHOT"
 
 val noPublish = Seq(
   publishArtifact := false,

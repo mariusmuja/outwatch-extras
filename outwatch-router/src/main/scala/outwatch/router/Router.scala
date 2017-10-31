@@ -6,6 +6,7 @@ import outwatch.Sink
 import outwatch.dom.{Handlers, VNode}
 import rxscalajs.Observable
 
+import scala.annotation.tailrec
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.scalajs.js
@@ -20,10 +21,11 @@ trait Router {
 
   case class Redirect[+Page](page: Page, replace: Boolean = false)
 
-  private val pageHandler = Handlers.createHandler[Redirect[Page]]().value.unsafeRunSync()
+  private val pageHandler = Handlers.createHandler[Redirect[Page]]().unsafeRunSync()
 
-  val sink : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
-  val redirectSink : Sink[Redirect[Page]] = pageHandler
+//  val sink : Sink[Redirect[Page]] = pageHandler
+  val set : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
+  val replace : Sink[Page] = pageHandler.redirectMap(p => Redirect(p, replace = true))
 
   def replace(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page, replace = true))
 
@@ -39,6 +41,7 @@ trait Router {
 
   protected class RouterConfig[Page](rules: Seq[Rule[Page]], notFound: Parsed[Page]) {
 
+    @tailrec
     private def findFirst[T, R](list: List[T => Option[R]])(arg: T): Option[R] = {
       list match {
         case Nil => None
@@ -112,8 +115,6 @@ trait Router {
   }
 
 
-  def onPageChange: (Page => Unit) = _ => ()
-
   private def parsedToPageWithEffects[S](parsed: Parsed[Page]) : Page  = {
     val page = parsed match {
       case Right(page) =>
@@ -144,14 +145,14 @@ trait Router {
     .map { _ => AbsUrl.fromWindow }
     .map(parseUrl)
 
-  val pageChangeSource = popStateObservable
-    .merge(
+  val pageChanged = popStateObservable.merge(
       pageHandler.map(r => Left(r))
     )
     .map(parsedToPageWithEffects)
+    .publishReplay(1)
+    .refCount
 
-  private val vnodeSource = pageChangeSource.map { page =>
-    onPageChange(page)
+  private val vnodeSource = pageChanged.map { page =>
     pageToNode(page)
   }
 

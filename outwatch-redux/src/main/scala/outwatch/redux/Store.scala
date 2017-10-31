@@ -1,5 +1,6 @@
 package outwatch.redux
 
+import cats.effect.IO
 import outwatch.dom.Handlers
 import rxscalajs.Observable
 import rxscalajs.subscription.Subscription
@@ -26,32 +27,34 @@ object Store {
   def create[Action, State <: EvolvableState[Action, State]](
     initActions: Seq[Action],
     initialState: State
-  ): Store[State, Action] = {
+  ): IO[Store[State, Action]] = {
 
-    val handler = Handlers.createHandler[Action](initActions :_*).value.unsafeRunSync()
-    val reducer: (State, Action)=> State = (state, action) => state.evolve(action)
+    Handlers.createHandler[Action](initActions :_*).map { handler =>
+      val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
-    val source: Observable[State] = handler
-      .scan(initialState)(reducer)
-      .startWith(initialState)
+      val source: Observable[State] = handler
+        .scan(initialState)(reducer)
+        .startWith(initialState)
 
-    apply(source, handler).shareReplay()
+      apply(source, handler).shareReplay()
+    }
   }
 
   def create[Action, State <: EvolvableState[Action, State]](
     initActions: Seq[Action],
     initialState: State,
     actionSource: Observable[Action],
-  ): Store[State, Action] = {
+  ): IO[Store[State, Action]] = {
 
-    val handler = Handlers.createHandler[Action](initActions :_*).value.unsafeRunSync()
-    val reducer: (State, Action)=> State = (state, action) => state.evolve(action)
+    Handlers.createHandler[Action](initActions :_*).map { handler =>
+      val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
-    val source: Observable[State] = handler.merge(actionSource)
-      .scan(initialState)(reducer)
-      .startWith(initialState)
+      val source: Observable[State] = handler.merge(actionSource)
+        .scan(initialState)(reducer)
+        .startWith(initialState)
 
-    apply(source, handler).shareReplay()
+      apply(source, handler).shareReplay()
+    }
   }
 
 
@@ -59,20 +62,21 @@ object Store {
     initActions: Seq[Action],
     initialState: State,
     effectHandler: Handler[Effect, Action],
-  ): Store[State, Action] = {
+  ): IO[Store[State, Action]] = {
 
-    val handler = Handlers.createHandler[Action](initActions :_*).value.unsafeRunSync()
+    Handlers.createHandler[Action](initActions :_*).map { handler =>
 
-    val reducer: (State, Action) => State = (state, action) => {
-      val (newState, effects) = state.evolve(action)
-      effects.subscribe(effectHandler.sink.observer.next _)
-      newState
+      val reducer: (State, Action) => State = (state, action) => {
+        val (newState, effects) = state.evolve(action)
+        effects.subscribe(effectHandler.sink.observer.next _)
+        newState
+      }
+
+      val source: Observable[State] = handler.merge(effectHandler.source)
+        .scan(initialState)(reducer)
+        .startWith(initialState)
+
+      apply(source, handler).shareReplay()
     }
-
-    val source: Observable[State] = handler.merge(effectHandler.source)
-      .scan(initialState)(reducer)
-      .startWith(initialState)
-
-    apply(source, handler).shareReplay()
   }
 }

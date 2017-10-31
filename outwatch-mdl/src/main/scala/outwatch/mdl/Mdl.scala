@@ -17,5 +17,5 @@ trait Mdl {
     IO(if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e))
   }
 
-  val material: InsertHook = Attributes.insert --> upgradeElement
+  val material: IO[InsertHook] = Attributes.insert --> upgradeElement
 }

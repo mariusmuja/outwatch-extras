@@ -1,6 +1,5 @@
 package outwatch.redux
 
-import outwatch.Sink
 import rxscalajs.Observable
 
 import scala.language.implicitConversions

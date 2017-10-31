@@ -1,5 +1,6 @@
 package demo
 
+import cats.effect.IO
 import demo.styles._
 import org.scalajs.dom
 import org.scalajs.dom.console
@@ -46,7 +47,7 @@ object Logger extends Component with LogAreaStyle {
       div(
         input(value <-- store.map(_.log.lastOption.getOrElse(""))),
         button(
-          click --> Router.replace(Router.LogPage(1)), "Goto"
+          click(Router.LogPage(1)) --> Router.replace, "Goto"
         )
       ),
       div(
@@ -58,17 +59,20 @@ object Logger extends Component with LogAreaStyle {
   }
 
   def apply(initActions: Action*): VNode = {
-    view(Store.create(initActions, State()))
+    Store.create(initActions, State()).flatMap { store =>
+      view(store)
+    }
   }
 
-  def withSink(initActions: Action*): (VNode, ActionSink) = {
+  def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
 
     val consoleActions = Console.Merge.source.map {
       case ConsoleEffectResult.Output(str) => LogAction(str)
     }
 
-    val store = Store.create(initActions, State(), consoleActions)
-    (view(store), store.sink)
+    Store.create(initActions, State(), consoleActions).map { store =>
+      (view(store), store.sink)
+    }
   }
 }
 
@@ -169,7 +173,7 @@ object TodoModule extends Component with
     div(
       TextField(actions.redirectMap(AddTodo)),
       button(stl.button, stl.material,
-        click --> Router.set(Router.LogPage(10)), "Log only"
+        click(Router.LogPage(10)) --> Router.set, "Log only"
       ),
       ul(children <-- todoViews)
     )
@@ -178,7 +182,9 @@ object TodoModule extends Component with
   def apply(logger: Logger.ActionSink,
             parent: TodoComponent.ActionSink,
             initActions: Action*): VNode = {
-    view(Store.create(initActions, State()), logger, parent)
+    Store.create(initActions, State()).flatMap { store =>
+      view(store, logger, parent)
+    }
   }
 }
 
@@ -201,26 +207,31 @@ object TodoComponent extends Component {
   def view(store: Store[State, Action]): VNode = {
     import outwatch.dom._
 
-    val (logger, loggerSink) = Logger.withSink()
+    Logger.withSink().flatMap { case (logger, loggerSink) =>
 
-    table(
-      tbody(
-        tr(
-          td("Last action: ", child <-- store.map(_.lastAction))
-        ),
-        tr(
-          td(TodoModule(loggerSink, store.sink)),
-          td(TodoModule(loggerSink, store.sink))
-        ),
-        tr(
-          td(logger)
+      val todoModule = TodoModule(loggerSink, store.sink)
+
+      table(
+        tbody(
+          tr(
+            td("Last action: ", child <-- store.map(_.lastAction))
+          ),
+          tr(
+            td(todoModule),
+            td(todoModule)
+          ),
+          tr(
+            td(logger)
+          )
         )
       )
-    )
+    }
   }
 
   def apply(initActions: Action*): VNode = {
-    view(Store.create(initActions, State()))
+    Store.create(initActions, State()).flatMap { store =>
+      view(store)
+    }
   }
 
 }
@@ -256,9 +267,11 @@ object Router extends OutwatchRouter {
   }
 
 
-  override def onPageChange = {
-    case TodoPage => dom.document.title = "TODO list"
-    case LogPage(_) => dom.document.title = "Log page"
+  pageChanged.subscribe { page =>
+    page match {
+      case TodoPage => dom.document.title = "TODO list"
+      case LogPage(_) => dom.document.title = "Log page"
+    }
   }
 }
 
