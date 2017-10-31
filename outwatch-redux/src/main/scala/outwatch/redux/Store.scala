@@ -1,6 +1,6 @@
 package outwatch.redux
 
-import outwatch.Sink
+import outwatch.dom.Handlers
 import rxscalajs.Observable
 import rxscalajs.subscription.Subscription
 
@@ -23,32 +23,56 @@ object Store {
   implicit def toSink[Action](store: Store[_, Action]): Sink[Action] = store.sink
   implicit def toSource[State](store: Store[State, _]): Observable[State] = store.source
 
-
-  def apply[State, Action](
-    handler: Handler[Action],
-    initialState: State,
-    reducer: (State, Action) => State
+  def create[Action, State <: EvolvableState[Action, State]](
+    initActions: Seq[Action],
+    initialState: State
   ): Store[State, Action] = {
+
+    val handler = Handlers.createHandler[Action](initActions :_*).value.unsafeRunSync()
+    val reducer: (State, Action)=> State = (state, action) => state.evolve(action)
 
     val source: Observable[State] = handler
       .scan(initialState)(reducer)
       .startWith(initialState)
 
-    apply(source, handler)
+    apply(source, handler).shareReplay()
   }
 
-  def apply[State, Action](
-    handler: Handler[Action],
+  def create[Action, State <: EvolvableState[Action, State]](
+    initActions: Seq[Action],
     initialState: State,
     actionSource: Observable[Action],
-    reducer: (State, Action) => State
   ): Store[State, Action] = {
+
+    val handler = Handlers.createHandler[Action](initActions :_*).value.unsafeRunSync()
+    val reducer: (State, Action)=> State = (state, action) => state.evolve(action)
 
     val source: Observable[State] = handler.merge(actionSource)
       .scan(initialState)(reducer)
       .startWith(initialState)
 
-    apply(source, handler)
+    apply(source, handler).shareReplay()
   }
 
+
+  def create[Action, Effect, State <: EvolvableEffectsState[Action, Effect, State]](
+    initActions: Seq[Action],
+    initialState: State,
+    effectHandler: Handler[Effect, Action],
+  ): Store[State, Action] = {
+
+    val handler = Handlers.createHandler[Action](initActions :_*).value.unsafeRunSync()
+
+    val reducer: (State, Action) => State = (state, action) => {
+      val (newState, effects) = state.evolve(action)
+      effects.subscribe(effectHandler.sink.observer.next _)
+      newState
+    }
+
+    val source: Observable[State] = handler.merge(effectHandler.source)
+      .scan(initialState)(reducer)
+      .startWith(initialState)
+
+    apply(source, handler).shareReplay()
+  }
 }

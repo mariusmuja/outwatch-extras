@@ -1,37 +1,45 @@
 package outwatch.redux
 
 import outwatch.Sink
-import outwatch.dom.Handlers
 import rxscalajs.Observable
+
+import scala.language.implicitConversions
 
 
 /**
   * Created by marius on 23/05/17.
   */
 
-trait Component {
+trait EvolvableState[Action, State] {
+  def evolve : Action => State
+}
 
+trait EvolvableEffectsState[Action, Effect, State] {
+
+  protected implicit def noEffect(state: State): (State, Observable[Effect]) = (state, Observable.empty)
+
+  protected implicit def justEffect(se : (State, Effect)): (State, Observable[Effect]) = (se._1, Observable.just(se._2))
+
+  def evolve : Action => (State, Observable[Effect])
+}
+
+
+trait Component {
   type Action
   type ActionSink = Sink[Action]
 
-  protected trait StateLike[State] {
-    def evolve : Action => State
-  }
-
-  protected type ComponentState = StateLike[State]
+  protected type ComponentState = EvolvableState[Action, State]
   protected type State <: ComponentState
 
-  private val reducer: (State, Action) =>  State = (state, action) => state.evolve(action)
+}
 
-  def init: State
+trait EffectsComponent {
+  type Action
+  type ActionSink = Sink[Action]
 
-  protected def createStore(initActions: Seq[Action]): Store[State, Action] = {
-    val handler = Handlers.createHandler[Action](initActions :_*)
-    Store(handler, init, reducer).shareReplay()
-  }
+  type Effect
+  type EffectSink = Sink[Effect]
 
-  protected def createStore(initActions: Seq[Action], actions: Observable[Action]): Store[State, Action] = {
-    val handler = Handlers.createHandler[Action](initActions :_*)
-    Store(handler, init, actions, reducer).shareReplay()
-  }
+  protected type ComponentState = EvolvableEffectsState[Action, Effect, State]
+  protected type State <: ComponentState
 }

@@ -1,26 +1,39 @@
 package outwatch.redux
 
-import outwatch.Sink
 import outwatch.dom.Handlers
 import rxscalajs.Observable
 
-/**
-  * Created by marius on 26/06/17.
-  */
-trait Effects {
-  type Effect
-  type EffectResult
+import scala.concurrent.{ExecutionContext, Future}
+import scala.language.implicitConversions
 
-  type EffectSink = Sink[Effect]
-  type EffectResultSource = Observable[EffectResult]
+trait Effects[Effect, EffectResult] {
 
-  private val handler = Handlers.createHandler[Effect]()
+  private val handler = Handlers.createHandler[Effect]().value.unsafeRunSync()
 
-  val sink: EffectSink = handler
+  val sink: Sink[Effect] = handler
 
-  lazy val sourceSwitch: EffectResultSource = handler.switchMap(effects).share
-  lazy val sourceMerge: EffectResultSource = handler.mergeMap(effects).share
-  lazy val sourceConcat: EffectResultSource = handler.concatMap(effects).share
+  // convenience implicit conversions
+  protected implicit def fromFutureResult(
+    result: Future[EffectResult]
+  )(implicit ex: ExecutionContext): Observable[EffectResult] = Observable.from(result)
+
+  //    protected implicit def fromResult(result: EffectResult): Observable[EffectResult] = Observable(result)
 
   def effects: Effect => Observable[EffectResult]
+
+  object Switch extends Handler[Effect, EffectResult] {
+    def sink: Sink[Effect] = Effects.this.sink
+    lazy val source: Source[EffectResult] = handler.switchMap(effects).share
+  }
+
+  object Merge extends Handler[Effect, EffectResult] {
+    def sink: Sink[Effect] = Effects.this.sink
+    lazy val source: Source[EffectResult] = handler.mergeMap(effects).share
+  }
+
+  object Concat extends Handler[Effect, EffectResult] {
+    def sink: Sink[Effect] = Effects.this.sink
+    lazy val source: Source[EffectResult] = handler.concatMap(effects).share
+  }
+
 }

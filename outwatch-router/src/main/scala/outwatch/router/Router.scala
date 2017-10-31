@@ -20,7 +20,7 @@ trait Router {
 
   case class Redirect[+Page](page: Page, replace: Boolean = false)
 
-  private val pageHandler = Handlers.createHandler[Redirect[Page]]()
+  private val pageHandler = Handlers.createHandler[Redirect[Page]]().value.unsafeRunSync()
 
   val sink : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
   val redirectSink : Sink[Redirect[Page]] = pageHandler

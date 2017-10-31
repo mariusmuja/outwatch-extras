@@ -8,15 +8,14 @@ import scalacss.defaults.Exports.StyleSheet
 /**
   * Created by marius on 11/06/17.
   */
-object Styles {
-  private val styles = Subject[StyleSheet.Inline]()
+trait Styles[S] {
+  private val styles = Subject[S]()
 
-  def publish(ss: StyleSheet.Inline): Unit = styles.next(ss)
+  def publish(s: S): Unit = styles.next(s)
 
-  def subscribe(f: StyleSheet.Inline => Unit): Subscription = styles.subscribe(f)
+  def subscribe(f: S => Unit): Subscription = styles.subscribe(f)
 
-  trait Publish { self: StyleSheet.Inline =>
-    publish(self)
-  }
-
+  trait Publish { self: S => publish(self) }
 }
+
+object Styles extends Styles[StyleSheet.Inline]

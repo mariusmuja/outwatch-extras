@@ -10,14 +10,14 @@ import outwatch.router.{BaseUrl, Router => OutwatchRouter}
 import outwatch.styles.Styles
 import rxscalajs.Observable
 
-import scala.scalajs.js.{Date, JSApp}
+import scala.scalajs.js.Date
 import scala.util.Random
 import scalacss.DevDefaults._
 
 
 
-object Logger extends Component with
-                      LogAreaStyle {
+object Logger extends Component with LogAreaStyle {
+
   sealed trait Action
   case class Init(message: String) extends Action
   case class LogAction(action: String) extends Action
@@ -58,16 +58,16 @@ object Logger extends Component with
   }
 
   def apply(initActions: Action*): VNode = {
-    view(createStore(initActions))
+    view(Store.create(initActions, State()))
   }
 
   def withSink(initActions: Action*): (VNode, ActionSink) = {
 
-    val consoleActions = Console.sourceMerge.map {
-      case Console.Output(str) => LogAction(str)
+    val consoleActions = Console.Merge.source.map {
+      case ConsoleEffectResult.Output(str) => LogAction(str)
     }
 
-    val store = createStore(initActions, consoleActions)
+    val store = Store.create(initActions, State(), consoleActions)
     (view(store), store.sink)
   }
 }
@@ -77,39 +77,40 @@ object TextField extends TextFieldStyle {
   def apply(actions: Sink[String], minLen : Int = 4)(implicit stl: Style): VNode = {
     import outwatch.dom._
 
-    val inputTodo = createStringHandler()
+    createStringHandler().flatMap { inputTodo =>
 
-    val disabledValues = inputTodo
-      .map(_.length < minLen)
-      .startWith(true)
+      val disabledValues = inputTodo
+        .map(_.length < minLen)
+        .startWith(true)
 
-    val filterSinkDisabled = (act: Observable[String]) =>
-      act.withLatestFrom(disabledValues)
-        .filter(x => !x._2)
-        .map(_._1)
+      val filterSinkDisabled = (act: Observable[String]) =>
+        act.withLatestFrom(disabledValues)
+          .filter(x => !x._2)
+          .map(_._1)
 
-    val filteredActions = actions.redirect(filterSinkDisabled)
-    val inputTodoFiltered = inputTodo.redirect(filterSinkDisabled)
+      val filteredActions = actions.redirect(filterSinkDisabled)
+      val inputTodoFiltered = inputTodo.redirect(filterSinkDisabled)
 
-    val enterdown = keydown.filter(k => k.keyCode == 13)
+      val enterdown = keydown.filter(k => k.keyCode == 13)
 
-    div(
-      div(stl.textfield, stl.material,
-        label(stl.textlabel, "Enter todo"),
-        input(stl.textinput,
-          inputString --> inputTodo,
-          value <-- inputTodo,
-          enterdown(inputTodo) --> filteredActions,
-          enterdown("") --> inputTodoFiltered
+      div(
+        div(stl.textfield, stl.material,
+          label(stl.textlabel, "Enter todo"),
+          input(stl.textinput,
+            inputString --> inputTodo,
+            value <-- inputTodo,
+            enterdown(inputTodo) --> filteredActions,
+            enterdown("") --> inputTodoFiltered
+          )
+        ),
+        button(stl.button, stl.material,
+          click(inputTodo) --> filteredActions,
+          click("") --> inputTodoFiltered,
+          disabled <-- disabledValues,
+          "Submit"
         )
-      ),
-      button(stl.button, stl.material,
-        click(inputTodo) --> filteredActions,
-        click("") --> inputTodoFiltered,
-        disabled <-- disabledValues,
-        "Submit"
       )
-    )
+    }
   }
 
 }
@@ -129,9 +130,9 @@ object TodoModule extends Component with
 
   case class State(todos: Seq[Todo] = Seq.empty) extends ComponentState {
     def evolve = {
-      case AddTodo(value) =>
+      case add @ AddTodo(value) =>
         copy(todos = todos :+ Todo(newID, value))
-      case RemoveTodo(todo) =>
+      case remove @ RemoveTodo(todo) =>
         copy(todos = todos.filter(_.id != todo.id))
     }
   }
@@ -145,8 +146,6 @@ object TodoModule extends Component with
     )
   }
 
-  def init = State()
-
   def view(store: Store[State, Action], logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit stl: Style): VNode = {
     import outwatch.dom._
 
@@ -159,8 +158,8 @@ object TodoModule extends Component with
       case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
     }
     val consoleSink = Console.sink.redirectMap[Action] {
-      case AddTodo(value) => Console.Log(value)
-      case RemoveTodo(todo) => Console.Log(todo.value)
+      case AddTodo(value) => ConsoleEffect.Log(value)
+      case RemoveTodo(todo) => ConsoleEffect.Log(todo.value)
     }
 
     val actions = SinkUtil.redirectInto(store.sink, loggedActions, parentSink, consoleSink)
@@ -179,7 +178,7 @@ object TodoModule extends Component with
   def apply(logger: Logger.ActionSink,
             parent: TodoComponent.ActionSink,
             initActions: Action*): VNode = {
-    view(createStore(initActions), logger, parent)
+    view(Store.create(initActions, State()), logger, parent)
   }
 }
 
@@ -198,8 +197,6 @@ object TodoComponent extends Component {
       case RemoveTodo(value) => copy(lastAction = s"Remove $value")
     }
   }
-
-  def init = State()
 
   def view(store: Store[State, Action]): VNode = {
     import outwatch.dom._
@@ -223,7 +220,7 @@ object TodoComponent extends Component {
   }
 
   def apply(initActions: Action*): VNode = {
-    view(createStore(initActions))
+    view(Store.create(initActions, State()))
   }
 
 }
@@ -249,11 +246,12 @@ object Router extends OutwatchRouter {
   val config = RouterConfig { builder =>
     import builder._
 
-    builder.rules(
-      ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
-      "todo".const(TodoPage) ~> TodoComponent(),
-      "log".const(Unit) ~> Redirect(LogPage(11), replace = true)
-    )
+    builder
+      .rules(
+        ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
+        "todo".const(TodoPage) ~> TodoComponent(),
+        "log".const(Unit) ~> Redirect(LogPage(11), replace = true)
+      )
       .notFound(Redirect(TodoPage, replace = true))
   }
 
@@ -264,28 +262,35 @@ object Router extends OutwatchRouter {
   }
 }
 
+sealed trait ConsoleEffect
+object ConsoleEffect {
+  case class Log(str: String) extends ConsoleEffect
+}
 
-object Console extends Effects {
+sealed trait ConsoleEffectResult
+object ConsoleEffectResult {
+  case class Output(str: String) extends ConsoleEffectResult
+}
 
-  sealed trait Effect
-  case class Log(str: String) extends Effect
+object Console extends Effects[ConsoleEffect, ConsoleEffectResult] {
 
-  sealed trait EffectResult
-  case class Output(str: String) extends EffectResult
+  import ConsoleEffect._
+  import ConsoleEffectResult._
 
-  def effects: Effect => Observable[EffectResult] = {
+  def effects: ConsoleEffect => Observable[ConsoleEffectResult] = {
     case Log(str) =>
       Observable.just(Output(str)).delay(1000)
   }
 }
 
+object DemoApp {
 
-object DemoApp{
   import outwatch.dom.OutWatch
 
   def main(args: Array[String]): Unit = {
+
     Styles.subscribe(_.addToDocument())
 
-    OutWatch.render("#app", Router())
+    OutWatch.render("#app", Router()).unsafeRunSync()
   }
 }
