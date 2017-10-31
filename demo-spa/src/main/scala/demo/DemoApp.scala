@@ -39,8 +39,6 @@ object Logger extends Component with LogAreaStyle {
     }
   }
 
-  def init = State()
-
   def view(store: Store[State, Action])(implicit stl: Style): VNode = {
     import outwatch.dom._
 
@@ -70,6 +68,7 @@ object Logger extends Component with LogAreaStyle {
     val consoleActions = Console.Merge.source.map {
       case ConsoleEffectResult.Output(str) => LogAction(str)
     }
+
 
     Store.create(initActions, State(), consoleActions).map { store =>
       (view(store), store.sink)
@@ -279,7 +278,6 @@ object ConsoleEffectResult {
 }
 
 object Console extends Effects[ConsoleEffect, ConsoleEffectResult] {
-
   import ConsoleEffect._
   import ConsoleEffectResult._
 
