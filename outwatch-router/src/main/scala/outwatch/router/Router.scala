@@ -25,10 +25,10 @@ trait Router {
   val set : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
   val replace : Sink[Page] = pageHandler.redirectMap(p => Redirect(p, replace = true))
 
-  @deprecated("Use .set sink")
+  @deprecated("Use .set sink", "0.1.1-SNAPSHOT")
   def set(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page))
 
-  @deprecated("Use .replace sink")
+  @deprecated("Use .replace sink", "0.1.1-SNAPSHOT")
   def replace(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page, replace = true))
 
 
