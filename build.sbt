@@ -1,8 +1,8 @@
 inThisBuild(Seq(
   organization := "com.github.mariusmuja",
-  version := "0.1.0-SNAPSHOT",
+  version := "0.1.1-SNAPSHOT",
   scalaVersion := crossScalaVersions.value.head,
-  crossScalaVersions := Seq("2.11.11", "2.12.2"),
+  crossScalaVersions := Seq("2.12.4", "2.11.11"),
   scalacOptions in Compile ++= Seq(
     "-deprecation",
     "-feature"
@@ -16,7 +16,7 @@ inThisBuild(Seq(
 )
 )
 
-val outwatchVersion = "0.10.1-SNAPSHOT"
+val outwatchVersion = "0.10.2"
 
 val noPublish = Seq(
   publishArtifact := false,
@@ -34,6 +34,7 @@ lazy val app = project.in(file("demo-spa"))
     name := "demo-spa",
     jsEnv := PhantomJSEnv().value,
     useYarn := true,
+    webpackBundlingMode := BundlingMode.LibraryAndApplication(),
     scalaJSUseMainModuleInitializer := true
   )
   .settings(noPublish: _*)
