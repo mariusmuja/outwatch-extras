@@ -23,14 +23,13 @@ trait Router {
 
   private val pageHandler = Handlers.createHandler[Redirect[Page]]().unsafeRunSync()
 
-//  val sink : Sink[Redirect[Page]] = pageHandler
   val set : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
   val replace : Sink[Page] = pageHandler.redirectMap(p => Redirect(p, replace = true))
 
-  @deprecated("Use .set sink")
+  @deprecated("Use .set sink", "0.1.1-SNAPSHOT")
   def set(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page))
 
-  @deprecated("Use .replace sink")
+  @deprecated("Use .replace sink", "0.1.1-SNAPSHOT")
   def replace(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page, replace = true))
 
 
@@ -117,7 +116,6 @@ trait Router {
     config.target(page).getOrElse(missingRuleFor(page))
   }
 
-
   private def parsedToPageWithEffects[S](parsed: Parsed[Page]) : Page  = {
     val page = parsed match {
       case Right(page) =>
@@ -144,20 +142,18 @@ trait Router {
     }
 
   private val popStateObservable = fromEvent(dom.window, "popstate")
-    .startWith(dom.document.createEvent("PopStateEvent"))
-    .map { _ => AbsUrl.fromWindow }
-    .map(parseUrl)
+    .startWith("")
+    .map { _ => parseUrl(AbsUrl.fromWindow) }
 
-  val pageChanged = popStateObservable.merge(
+  val pageChanged: Observable[Page] = popStateObservable
+    .merge(
       pageHandler.map(r => Left(r))
     )
     .map(parsedToPageWithEffects)
     .publishReplay(1)
     .refCount
 
-  private val vnodeSource = pageChanged.map { page =>
-    pageToNode(page)
-  }
+  private val vnodeSource = pageChanged.map(pageToNode)
 
   def baseLayout(vnode: Observable[VNode]): VNode = {
     outwatch.dom.div(outwatch.dom.child <-- vnode)

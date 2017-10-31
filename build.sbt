@@ -1,6 +1,6 @@
 inThisBuild(Seq(
   organization := "com.github.mariusmuja",
-  version := "0.1.1-SNAPSHOT",
+  version := "0.1.2-SNAPSHOT",
   scalaVersion := crossScalaVersions.value.head,
   crossScalaVersions := Seq("2.12.4", "2.11.11"),
   scalacOptions in Compile ++= Seq(
@@ -15,8 +15,6 @@ inThisBuild(Seq(
   publishArtifact in Test := false
 )
 )
-
-addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 
 val outwatchVersion = "0.11.1-SNAPSHOT"
 
@@ -37,6 +35,7 @@ lazy val app = project.in(file("demo-spa"))
     jsEnv := PhantomJSEnv().value,
     webpackBundlingMode := BundlingMode.LibraryAndApplication(),
     useYarn := true,
+    webpackBundlingMode := BundlingMode.LibraryAndApplication(),
     scalaJSUseMainModuleInitializer := true
   )
   .settings(noPublish: _*)

@@ -1,6 +1,7 @@
 package demo
 
 import cats.effect.IO
+import demo.Router.{LogPage, TodoPage}
 import demo.styles._
 import org.scalajs.dom
 import org.scalajs.dom.console
@@ -265,14 +266,6 @@ object Router extends OutwatchRouter {
       )
       .notFound(Redirect(TodoPage, replace = true))
   }
-
-
-  pageChanged.subscribe { page =>
-    page match {
-      case TodoPage => dom.document.title = "TODO list"
-      case LogPage(_) => dom.document.title = "Log page"
-    }
-  }
 }
 
 sealed trait ConsoleEffect
@@ -301,6 +294,13 @@ object DemoApp {
   import outwatch.dom.OutWatch
 
   def main(args: Array[String]): Unit = {
+
+    Router.pageChanged.subscribe { page =>
+      page match {
+        case TodoPage => dom.document.title = "TODO list"
+        case LogPage(_) => dom.document.title = "Log page"
+      }
+    }
 
     Styles.subscribe(_.addToDocument())
 
