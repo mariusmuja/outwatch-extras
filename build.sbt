@@ -2,7 +2,7 @@ inThisBuild(Seq(
   organization := "com.github.mariusmuja",
   version := "0.1.0-SNAPSHOT",
   scalaVersion := crossScalaVersions.value.head,
-  crossScalaVersions := Seq("2.11.11", "2.12.2"),
+  crossScalaVersions := Seq("2.11.11", "2.12.4"),
   scalacOptions in Compile ++= Seq(
     "-deprecation",
     "-feature"
@@ -16,7 +16,7 @@ inThisBuild(Seq(
 )
 )
 
-val outwatchVersion = "0.10.1-SNAPSHOT"
+val outwatchVersion = "0.10.2"
 
 val noPublish = Seq(
   publishArtifact := false,
