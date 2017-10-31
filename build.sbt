@@ -1,6 +1,6 @@
 inThisBuild(Seq(
   organization := "com.github.mariusmuja",
-  version := "0.1.0-SNAPSHOT",
+  version := "0.1.1-SNAPSHOT",
   scalaVersion := crossScalaVersions.value.head,
   crossScalaVersions := Seq("2.12.4", "2.11.11"),
   scalacOptions in Compile ++= Seq(

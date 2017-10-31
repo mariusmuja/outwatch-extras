@@ -27,9 +27,12 @@ trait Router {
   val set : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
   val replace : Sink[Page] = pageHandler.redirectMap(p => Redirect(p, replace = true))
 
+  @deprecated("Use .set sink")
+  def set(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page))
+
+  @deprecated("Use .replace sink")
   def replace(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page, replace = true))
 
-  def set(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page))
 
   protected type Parsed[Page] = Either[Redirect[Page], Page]
 
