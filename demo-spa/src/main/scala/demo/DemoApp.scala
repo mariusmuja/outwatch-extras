@@ -1,5 +1,6 @@
 package demo
 
+import demo.Router.{LogPage, TodoPage}
 import demo.styles._
 import org.scalajs.dom
 import org.scalajs.dom.console
@@ -46,7 +47,7 @@ object Logger extends Component with
       div(
         input(value <-- store.map(_.log.lastOption.getOrElse(""))),
         button(
-          click --> Router.replace(Router.LogPage(1)), "Goto"
+          click(Router.LogPage(1)) --> Router.replace, "Goto"
         )
       ),
       div(
@@ -170,7 +171,7 @@ object TodoModule extends Component with
     div(
       TextField(actions.redirectMap(AddTodo)),
       button(stl.button, stl.material,
-        click --> Router.set(Router.LogPage(10)), "Log only"
+        click(Router.LogPage(10)) --> Router.set, "Log only"
       ),
       ul(children <-- todoViews)
     )
@@ -256,12 +257,6 @@ object Router extends OutwatchRouter {
     )
       .notFound(Redirect(TodoPage, replace = true))
   }
-
-
-  override def onPageChange = {
-    case TodoPage => dom.document.title = "TODO list"
-    case LogPage(_) => dom.document.title = "Log page"
-  }
 }
 
 
@@ -284,6 +279,14 @@ object DemoApp{
   import outwatch.dom.OutWatch
 
   def main(args: Array[String]): Unit = {
+
+    Router.pageChanged.subscribe { page =>
+      page match {
+        case TodoPage => dom.document.title = "TODO list"
+        case LogPage(_) => dom.document.title = "Log page"
+      }
+    }
+
     Styles.subscribe(_.addToDocument())
 
     OutWatch.render("#app", Router())
