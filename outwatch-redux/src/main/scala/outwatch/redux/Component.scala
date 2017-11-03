@@ -13,11 +13,13 @@ trait EvolvableState[Action, State] {
   def evolve : Action => State
 }
 
-trait EvolvableEffectsState[Action, Effect, State] {
+trait EvolvableEffectsState[Action, Effect, State] { self: State =>
 
   protected implicit def noEffect(state: State): (State, Observable[Effect]) = (state, Observable.empty)
 
-  protected implicit def justEffect(se : (State, Effect)): (State, Observable[Effect]) = (se._1, Observable.just(se._2))
+  protected implicit def oneEffect(se : (State, Effect)): (State, Observable[Effect]) = (se._1, Observable.just(se._2))
+
+  protected implicit def justEffect(e : Effect): (State, Observable[Effect]) = (self, Observable.just(e))
 
   def evolve : Action => (State, Observable[Effect])
 }
@@ -30,6 +32,7 @@ trait Component {
   protected type ComponentState = EvolvableState[Action, State]
   protected type State <: ComponentState
 
+  type ComponentStore = Store[State, Action]
 }
 
 trait EffectsComponent {
@@ -41,4 +44,6 @@ trait EffectsComponent {
 
   protected type ComponentState = EvolvableEffectsState[Action, Effect, State]
   protected type State <: ComponentState
+
+  type ComponentStore = Store[State, Action]
 }

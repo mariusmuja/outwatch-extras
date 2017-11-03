@@ -1,7 +1,6 @@
 package outwatch.router
 
 import org.scalajs.dom
-import org.scalajs.dom.MouseEvent
 import outwatch.Sink
 import outwatch.dom.{Handlers, VNode}
 import rxscalajs.Observable
@@ -25,13 +24,6 @@ trait Router {
 
   val set : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
   val replace : Sink[Page] = pageHandler.redirectMap(p => Redirect(p, replace = true))
-
-  @deprecated("Use .set sink", "0.1.1-SNAPSHOT")
-  def set(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page))
-
-  @deprecated("Use .replace sink", "0.1.1-SNAPSHOT")
-  def replace(page: Page) : Sink[MouseEvent] = pageHandler.redirectMap(_ => Redirect(page, replace = true))
-
 
   protected type Parsed[Page] = Either[Redirect[Page], Page]
 
@@ -116,18 +108,15 @@ trait Router {
     config.target(page).getOrElse(missingRuleFor(page))
   }
 
-  private def parsedToPageWithEffects[S](parsed: Parsed[Page]) : Page  = {
-    val page = parsed match {
-      case Right(page) =>
-        page
-      case Left(Redirect(page, true)) =>
-        dom.window.history.replaceState("", "", pageToUrl(page).value)
-        page
-      case Left(Redirect(page, false)) =>
-        dom.window.history.pushState("", "", pageToUrl(page).value)
-        page
-    }
-    page
+  private val parsedToPageWithEffects: Parsed[Page] => Page = {
+    case Right(page) =>
+      page
+    case Left(Redirect(page, true)) =>
+      dom.window.history.replaceState("", "", pageToUrl(page).value)
+      page
+    case Left(Redirect(page, false)) =>
+      dom.window.history.pushState("", "", pageToUrl(page).value)
+      page
   }
 
   private def fromEvent(target: dom.EventTarget, event: String): Observable[dom.Event] =
@@ -154,10 +143,9 @@ trait Router {
     .refCount
 
   private val vnodeSource = pageChanged.map(pageToNode)
-
-  def baseLayout(vnode: Observable[VNode]): VNode = {
+  private val defaultBaseLayout: Observable[VNode] => VNode = { vnode =>
     outwatch.dom.div(outwatch.dom.child <-- vnode)
   }
 
-  def apply(): VNode = baseLayout(vnodeSource)
+  def apply(baseLayout: Observable[VNode] => VNode = defaultBaseLayout): VNode = baseLayout(vnodeSource)
 }

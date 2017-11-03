@@ -13,9 +13,10 @@ package object redux {
 
     def source: Source[O]
 
-    def contramap[I2](f: I2 => I): Handler[I2, O] = Pipe(sink.redirectMap(f), source)
-    def map[O2](f: O => O2): Handler[I, O2] = Pipe(sink, source.map(f))
+    def contramap[I2](f: I2 => I): Handler[I2, O] = HandlerPipe(sink.redirectMap(f), source)
+
+    def map[O2](f: O => O2): Handler[I, O2] = HandlerPipe(sink, source.map(f))
   }
 
-  case class Pipe[-I, +O](sink: Sink[I], source: Source[O]) extends Handler[I, O]
+  case class HandlerPipe[-I, +O](sink: Sink[I], source: Source[O]) extends Handler[I, O]
 }

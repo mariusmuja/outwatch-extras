@@ -33,7 +33,6 @@ lazy val app = project.in(file("demo-spa"))
   .settings(
     name := "demo-spa",
     jsEnv := PhantomJSEnv().value,
-    webpackBundlingMode := BundlingMode.LibraryAndApplication(),
     useYarn := true,
     webpackBundlingMode := BundlingMode.LibraryAndApplication(),
     scalaJSUseMainModuleInitializer := true

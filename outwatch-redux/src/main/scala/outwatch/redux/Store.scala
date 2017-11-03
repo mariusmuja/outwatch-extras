@@ -1,6 +1,7 @@
 package outwatch.redux
 
 import cats.effect.IO
+import org.scalajs.dom
 import outwatch.dom.Handlers
 import rxscalajs.Observable
 import rxscalajs.subscription.Subscription
@@ -14,9 +15,9 @@ final case class Store[State, Action](source: Observable[State], sink: Sink[Acti
 
   def subscribe(f: State => Unit): Subscription = source.subscribe(f)
 
-  def share: Store[State, Action] = Store(source.share, sink)
+  def share: Store[State, Action] = copy(source = source.share)
 
-  def shareReplay(count: Int = 1) = Store(source.publishReplay(1).refCount, sink)
+  def shareReplay(count: Int = 1): Store[State, Action] = copy(source = source.publishReplay(1).refCount)
 }
 
 object Store {
@@ -29,7 +30,7 @@ object Store {
     initialState: State
   ): IO[Store[State, Action]] = {
 
-    Handlers.createHandler[Action](initActions :_*).map { handler =>
+    Handlers.createHandler[Action](initActions: _*).map { handler =>
       val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
       val source: Observable[State] = handler
@@ -39,6 +40,7 @@ object Store {
       apply(source, handler).shareReplay()
     }
   }
+
 
   def create[Action, State <: EvolvableState[Action, State]](
     initActions: Seq[Action],
@@ -72,7 +74,7 @@ object Store {
         newState
       }
 
-      val source: Observable[State] = handler.merge(effectHandler.source)
+      val source: Observable[State] = effectHandler.source.merge(handler)
         .scan(initialState)(reducer)
         .startWith(initialState)
 
