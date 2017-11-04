@@ -1,11 +1,12 @@
 package outwatch.redux
 
 import cats.effect.IO
-import org.scalajs.dom
+import monix.execution.Scheduler.Implicits.global
+import monix.execution.{Ack, Cancelable}
+import monix.reactive.Observable
 import outwatch.dom.Handlers
-import rxscalajs.Observable
-import rxscalajs.subscription.Subscription
 
+import scala.concurrent.Future
 import scala.language.implicitConversions
 
 /**
@@ -13,11 +14,11 @@ import scala.language.implicitConversions
   */
 final case class Store[State, Action](source: Observable[State], sink: Sink[Action]) {
 
-  def subscribe(f: State => Unit): Subscription = source.subscribe(f)
+  def subscribe(f: State => Future[Ack]): Cancelable = source.subscribe(f)
 
   def share: Store[State, Action] = copy(source = source.share)
 
-  def shareReplay(count: Int = 1): Store[State, Action] = copy(source = source.publishReplay(1).refCount)
+  def shareReplay(count: Int = 1): Store[State, Action] = copy(source = source.replay(1).refCount)
 }
 
 object Store {
@@ -35,7 +36,7 @@ object Store {
 
       val source: Observable[State] = handler
         .scan(initialState)(reducer)
-        .startWith(initialState)
+        .startWith(Seq(initialState))
 
       apply(source, handler).shareReplay()
     }
@@ -51,9 +52,9 @@ object Store {
     Handlers.createHandler[Action](initActions :_*).map { handler =>
       val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
-      val source: Observable[State] = handler.merge(actionSource)
+      val source: Observable[State] = Observable.merge(handler, actionSource)
         .scan(initialState)(reducer)
-        .startWith(initialState)
+        .startWith(Seq(initialState))
 
       apply(source, handler).shareReplay()
     }
@@ -70,13 +71,13 @@ object Store {
 
       val reducer: (State, Action) => State = (state, action) => {
         val (newState, effects) = state.evolve(action)
-        effects.subscribe(effectHandler.sink.observer.next _)
+        effects.subscribe(effectHandler.sink.observer.onNext _)
         newState
       }
 
-      val source: Observable[State] = effectHandler.source.merge(handler)
+      val source: Observable[State] = Observable.merge(handler, effectHandler.source)
         .scan(initialState)(reducer)
-        .startWith(initialState)
+        .startWith(Seq(initialState))
 
       apply(source, handler).shareReplay()
     }

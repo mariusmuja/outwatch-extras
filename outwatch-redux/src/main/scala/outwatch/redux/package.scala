@@ -1,12 +1,14 @@
 package outwatch
 
+import monix.execution.Scheduler.Implicits.global
+
 /**
   * Created by marius on 25/06/17.
   */
 package object redux {
 
   type Sink[-A] = outwatch.Sink[A]
-  type Source[+A] = rxscalajs.Observable[A]
+  type Source[+A] = monix.reactive.Observable[A]
 
   trait Handler[-I, +O] {
     def sink: Sink[I]

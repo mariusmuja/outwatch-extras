@@ -1,17 +1,20 @@
 package demo
 
-import cats.effect.IO
 import demo.Router.{LogPage, Page, TodoPage}
 import demo.styles._
+import monix.execution.Ack
+import monix.execution.Ack.Continue
+import monix.execution.Scheduler.Implicits.global
+import monix.reactive.Observable
 import org.scalajs.dom
-import org.scalajs.dom.console
 import outwatch.Sink
 import outwatch.dom.VNode
 import outwatch.redux._
 import outwatch.router.{BaseUrl, Router => OutwatchRouter}
 import outwatch.styles.Styles
-import rxscalajs.Observable
 
+import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.scalajs.js.Date
 import scala.util.Random
 import scalacss.DevDefaults._
@@ -35,7 +38,6 @@ object Logger extends EffectsComponent with LogAreaStyle {
 
     val evolve = {
       case InitEffect(message) =>
-        dom.console.log("InitEffect")
         ConsoleEffect.Log(message)
       case Init(message) =>
         copy(log :+ message)
@@ -91,10 +93,10 @@ object TextField extends TextFieldStyle {
 
       val disabledValues = inputTodo
         .map(_.length < minLen)
-        .startWith(true)
+        .startWith(Seq(true))
 
       val filterSinkDisabled = (act: Observable[String]) =>
-        act.withLatestFrom(disabledValues)
+        act.withLatestFrom(disabledValues)((a,b) => (a,b))
           .filter(x => !x._2)
           .map(_._1)
 
@@ -282,8 +284,8 @@ object Console extends Effects[ConsoleEffect, ConsoleEffectResult] {
   val effects: ConsoleEffect => Observable[ConsoleEffectResult] = {
     case Log(str) =>
       dom.console.log(s"In console: $str")
-      val obs = Observable.just(Output(str))
-      obs.delay(1000)
+      val obs = Observable(Output(str))
+      obs.delayOnNext(1000.millis)
   }
 }
 
@@ -304,9 +306,13 @@ object DemoApp {
 
   import outwatch.dom.OutWatch
 
-  val updatePageTitle : Page => Unit = {
-    case TodoPage => dom.document.title = "TODO list"
-    case LogPage(_) => dom.document.title = "Log page"
+  val updatePageTitle : Page => Future[Ack] = {
+    case TodoPage =>
+      dom.document.title = "TODO list"
+      Continue
+    case LogPage(_) =>
+      dom.document.title = "Log page"
+      Continue
   }
 
   def main(args: Array[String]): Unit = {

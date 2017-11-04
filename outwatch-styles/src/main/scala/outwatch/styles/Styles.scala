@@ -1,7 +1,9 @@
 package outwatch.styles
 
-import rxscalajs.Subject
-import rxscalajs.subscription.Subscription
+import monix.execution.Ack.Continue
+import monix.execution.Cancelable
+import monix.reactive.subjects.ConcurrentSubject
+import monix.execution.Scheduler.Implicits.global
 
 import scalacss.defaults.Exports.StyleSheet
 
@@ -9,13 +11,20 @@ import scalacss.defaults.Exports.StyleSheet
   * Created by marius on 11/06/17.
   */
 trait Styles[S] {
-  private val styles = Subject[S]()
+  private val styles = ConcurrentSubject.publish[S]
 
-  def publish(s: S): Unit = styles.next(s)
+  def publish(s: S): Unit = styles.onNext(s)
 
-  def subscribe(f: S => Unit): Subscription = styles.subscribe(f)
+  def subscribe(f: S => Unit): Cancelable = styles.subscribe { s =>
+    f(s)
+    Continue
+  }
 
-  trait Publish { self: S => publish(self) }
+  trait Publish {
+    self: S =>
+    publish(self)
+  }
+
 }
 
 object Styles extends Styles[StyleSheet.Inline]

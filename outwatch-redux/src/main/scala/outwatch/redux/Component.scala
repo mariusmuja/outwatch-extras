@@ -1,6 +1,6 @@
 package outwatch.redux
 
-import rxscalajs.Observable
+import monix.reactive.Observable
 
 import scala.language.implicitConversions
 
@@ -17,9 +17,9 @@ trait EvolvableEffectsState[Action, Effect, State] { self: State =>
 
   protected implicit def noEffect(state: State): (State, Observable[Effect]) = (state, Observable.empty)
 
-  protected implicit def oneEffect(se : (State, Effect)): (State, Observable[Effect]) = (se._1, Observable.just(se._2))
+  protected implicit def oneEffect(se : (State, Effect)): (State, Observable[Effect]) = (se._1, Observable(se._2))
 
-  protected implicit def justEffect(e : Effect): (State, Observable[Effect]) = (self, Observable.just(e))
+  protected implicit def justEffect(e : Effect): (State, Observable[Effect]) = (self, Observable(e))
 
   def evolve : Action => (State, Observable[Effect])
 }

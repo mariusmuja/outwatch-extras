@@ -1,6 +1,6 @@
 inThisBuild(Seq(
   organization := "com.github.mariusmuja",
-  version := "0.1.2-SNAPSHOT",
+  version := "0.1.2-monix-SNAPSHOT",
   scalaVersion := crossScalaVersions.value.head,
   crossScalaVersions := Seq("2.12.4", "2.11.11"),
   scalacOptions in Compile ++= Seq(
@@ -16,7 +16,7 @@ inThisBuild(Seq(
 )
 )
 
-val outwatchVersion = "0.11.1-SNAPSHOT"
+val outwatchVersion = "0.11.1-monix-SNAPSHOT"
 
 val noPublish = Seq(
   publishArtifact := false,

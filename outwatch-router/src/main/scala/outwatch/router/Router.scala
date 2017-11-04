@@ -1,9 +1,14 @@
 package outwatch.router
 
+import monix.execution.Ack.Continue
+import monix.execution.Scheduler.Implicits.global
+import monix.execution.cancelables.SingleAssignmentCancelable
+import monix.execution.{Ack, Cancelable}
+import monix.reactive.Observable
+import monix.reactive.OverflowStrategy.Unbounded
 import org.scalajs.dom
 import outwatch.Sink
 import outwatch.dom.{Handlers, VNode}
-import rxscalajs.Observable
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
@@ -120,26 +125,26 @@ trait Router {
   }
 
   private def fromEvent(target: dom.EventTarget, event: String): Observable[dom.Event] =
-    Observable.create { subscriber =>
-      val eventHandler: js.Function1[dom.Event, Unit] = (e: dom.Event) => subscriber.next(e)
-      target.addEventListener(event, eventHandler)
-      val cancel: Observable.Creator = () => {
-        target.removeEventListener(event, eventHandler)
-        subscriber.complete()
+    Observable.create(Unbounded) { subscriber =>
+      val c = SingleAssignmentCancelable()
+      val eventHandler: js.Function1[dom.Event, Ack] = { (e: dom.Event) =>
+        subscriber.onNext(e)
+        Continue
       }
-      cancel
+      target.addEventListener(event, eventHandler)
+      c := Cancelable(() => target.removeEventListener(event, eventHandler))
     }
 
   private val popStateObservable = fromEvent(dom.window, "popstate")
-    .startWith("")
+    .startWith(Seq(""))
     .map { _ => parseUrl(AbsUrl.fromWindow) }
 
-  val pageChanged: Observable[Page] = popStateObservable
-    .merge(
-      pageHandler.map(r => Left(r))
-    )
+  val pageChanged: Observable[Page] = Observable.merge(
+    popStateObservable,
+    pageHandler.map(r => Left(r))
+  )
     .map(parsedToPageWithEffects)
-    .publishReplay(1)
+    .replay(1)
     .refCount
 
   private val vnodeSource = pageChanged.map(pageToNode)

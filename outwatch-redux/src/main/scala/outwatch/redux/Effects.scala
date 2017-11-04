@@ -1,7 +1,8 @@
 package outwatch.redux
 
+import monix.execution.Scheduler.Implicits.global
+import monix.reactive.Observable
 import outwatch.dom.Handlers
-import rxscalajs.Observable
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
@@ -15,7 +16,7 @@ trait Effects[Effect, EffectResult] {
   // convenience implicit conversions
   protected implicit def fromFutureResult(
     result: Future[EffectResult]
-  )(implicit ex: ExecutionContext): Observable[EffectResult] = Observable.from(result)
+  )(implicit ex: ExecutionContext): Observable[EffectResult] = Observable.fromFuture(result)
 
   //    protected implicit def fromResult(result: EffectResult): Observable[EffectResult] = Observable(result)
 

@@ -1,6 +1,7 @@
 package outwatch.redux
 
 import cats.effect.IO
+import monix.execution.Scheduler.Implicits.global
 import outwatch.dom.Handlers
 
 /**
