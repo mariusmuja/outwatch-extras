@@ -3,8 +3,7 @@ package outwatch.redux
 import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.{Ack, Cancelable}
-import monix.reactive.Observable
-import outwatch.dom.Handlers
+import outwatch.dom.{Handlers, Observable}
 
 import scala.concurrent.Future
 import scala.language.implicitConversions

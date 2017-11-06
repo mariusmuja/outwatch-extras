@@ -1,8 +1,7 @@
 package outwatch.redux
 
 import monix.execution.Scheduler.Implicits.global
-import monix.reactive.Observable
-import outwatch.dom.Handlers
+import outwatch.dom.{Handlers, Observable}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions

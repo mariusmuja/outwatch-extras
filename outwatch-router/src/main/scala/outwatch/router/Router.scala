@@ -4,11 +4,10 @@ import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.cancelables.SingleAssignmentCancelable
 import monix.execution.{Ack, Cancelable}
-import monix.reactive.Observable
 import monix.reactive.OverflowStrategy.Unbounded
 import org.scalajs.dom
 import outwatch.Sink
-import outwatch.dom.{Handlers, VNode}
+import outwatch.dom.{Handlers, VNode, Observable}
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions

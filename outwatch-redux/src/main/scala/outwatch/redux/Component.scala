@@ -1,6 +1,6 @@
 package outwatch.redux
 
-import monix.reactive.Observable
+import outwatch.dom.Observable
 
 import scala.language.implicitConversions
 

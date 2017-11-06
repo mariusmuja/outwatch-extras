@@ -1,14 +1,12 @@
 package demo
 
+import cats.effect.IO
 import demo.Router.{LogPage, Page, TodoPage}
 import demo.styles._
-import monix.execution.Ack
-import monix.execution.Ack.Continue
+import monix.execution.Ack, Ack.Continue
 import monix.execution.Scheduler.Implicits.global
-import monix.reactive.Observable
 import org.scalajs.dom
-import outwatch.Sink
-import outwatch.dom.VNode
+import outwatch.dom.{Observable, Sink, VNode}
 import outwatch.redux._
 import outwatch.router.{BaseUrl, Router => OutwatchRouter}
 import outwatch.styles.Styles
@@ -42,7 +40,7 @@ object Logger extends EffectsComponent with LogAreaStyle {
       case Init(message) =>
         copy(log :+ message)
       case LogAction(line) =>
-//        console.log(s"Log >>>> $line")
+        dom.console.log(s"Log >>>> $line")
         copy(log :+ s"$now : $line")
     }
   }
@@ -74,14 +72,12 @@ object Logger extends EffectsComponent with LogAreaStyle {
       .flatMap(view)
   }
 
-//  def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
-//
-//    val consoleActions = Console.Merge.source.map(consoleToAction)
-//
-//    Store.create(initActions, State(), consoleActions).map { store =>
-//      (view(store), store.sink)
-//    }
-//  }
+  def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
+
+    Store.create(initActions, State(), Console.Merge.map(consoleToAction)).map { store =>
+      (view(store), store.sink)
+    }
+  }
 }
 
 object TextField extends TextFieldStyle {
@@ -158,13 +154,13 @@ object TodoModule extends Component with
     )
   }
 
-  def view(store: Store[State, Action],  parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
+  def view(store: Store[State, Action],  logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
     import outwatch.dom._
 
-//    val loggedActions = logger.redirectMap[Action]{
-//      case AddTodo(value) => Logger.LogAction(s"Add $value")
-//      case RemoveTodo(todo) => Logger.LogAction(s"Remove ${todo.value}")
-//    }
+    val loggerSink = logger.redirectMap[Action]{
+      case AddTodo(value) => Logger.LogAction(s"Add $value")
+      case RemoveTodo(todo) => Logger.LogAction(s"Remove ${todo.value}")
+    }
     val parentSink = parent.redirectMap[Action] {
       case AddTodo(value) => TodoComponent.AddTodo(value)
       case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
@@ -174,7 +170,7 @@ object TodoModule extends Component with
       case RemoveTodo(todo) => ConsoleEffect.Log(todo.value)
     }
 
-    SinkUtil.redirectInto(store.sink, parentSink, consoleSink).flatMap { actions =>
+    SinkUtil.redirectInto(store.sink, loggerSink, parentSink, consoleSink).flatMap { actions =>
 
       val todoViews = store.source.map(_.todos.map(todoItem(_, actions, S)))
 
@@ -188,12 +184,11 @@ object TodoModule extends Component with
     }
   }
 
-  def apply(//logger: Logger.ActionSink,
+  def apply(logger: Logger.ActionSink,
     parent: TodoComponent.ActionSink,
     initActions: Action*
   ): VNode = {
-    Store.create(initActions, State())
-      .flatMap(view(_, parent))
+    Store.create(initActions, State()).flatMap(view(_, logger, parent))
   }
 }
 
@@ -216,25 +211,26 @@ object TodoComponent extends Component {
   def view(store: Store[State, Action]): VNode = {
     import outwatch.dom._
 
-//    Logger.withSink().flatMap { case (logger, loggerSink) =>
+    Logger.withSink(Logger.InitEffect("Effect log"))
+      .flatMap { case (logger, loggerSink) =>
 
-      val todoModule = TodoModule(store.sink)
+        val todoModule = TodoModule(loggerSink, store.sink)
 
-      table(
-        tbody(
-          tr(
-            td("Last action: ", child <-- store.map(_.lastAction))
-          ),
-          tr(
-            td(todoModule),
-            td(todoModule)
-          ),
-          tr(
-            td(Logger(Logger.InitEffect("Effect log")))
+        table(
+          tbody(
+            tr(
+              td("Last action: ", child <-- store.map(_.lastAction))
+            ),
+            tr(
+              td(todoModule),
+              td(todoModule)
+            ),
+            tr(
+              td(logger)
+            )
           )
         )
-      )
-//    }
+      }
   }
 
   def apply(initActions: Action*): VNode = {
