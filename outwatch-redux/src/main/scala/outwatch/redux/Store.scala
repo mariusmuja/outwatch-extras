@@ -11,7 +11,7 @@ import scala.language.implicitConversions
 /**
   * Created by marius on 11/06/17.
   */
-final case class Store[State, Action](source: Observable[State], sink: Sink[Action]) {
+final case class Store[State, Action](source: Observable[State], sink: Sink[Action]) extends >-->[Action, State]{
 
   def subscribe(f: State => Future[Ack]): Cancelable = source.subscribe(f)
 
@@ -63,7 +63,7 @@ object Store {
   def create[Action, Effect, State <: EvolvableEffectsState[Action, Effect, State]](
     initActions: Seq[Action],
     initialState: State,
-    effectHandler: Handler[Effect, Action],
+    effectHandler: Effect >--> Action,
   ): IO[Store[State, Action]] = {
 
     Handlers.createHandler[Action](initActions :_*).map { handler =>

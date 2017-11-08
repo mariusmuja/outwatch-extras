@@ -18,4 +18,5 @@ trait ComponentStyle {
   implicit def styleToAttr(styleA: StyleA): IO[Attribute] = {
     Attributes.`class` := styleA.htmlClass
   }
+
 }

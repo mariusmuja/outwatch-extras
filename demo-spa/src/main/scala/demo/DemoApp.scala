@@ -45,19 +45,19 @@ object Logger extends EffectsComponent with LogAreaStyle {
     }
   }
 
-  def view(store: Store[State, Action])(implicit S: Style): VNode = {
+  def view(handler: Action >--> State)(implicit S: Style): VNode = {
     import outwatch.dom._
 
     div(
       div(
-        input(value <-- store.map(_.log.lastOption.getOrElse(""))),
+        input(value <-- handler.source.map(_.log.lastOption.getOrElse(""))),
         button(
           click(Router.LogPage(1)) --> Router.replace, "Goto"
         )
       ),
       div(
         textarea(S.textfield, S.material,
-          child <-- store.map(_.log.mkString("\n"))
+          child <-- handler.source.map(_.log.mkString("\n"))
         )
       )
     )
@@ -154,7 +154,7 @@ object TodoModule extends Component with
     )
   }
 
-  def view(store: Store[State, Action],  logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
+  def view(store: Action >--> State,  logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
     import outwatch.dom._
 
     val loggerSink = logger.redirectMap[Action]{
@@ -208,7 +208,7 @@ object TodoComponent extends Component {
     }
   }
 
-  def view(store: Store[State, Action]): VNode = {
+  def view(store: Action >--> State): VNode = {
     import outwatch.dom._
 
     Logger.withSink(Logger.InitEffect("Effect log"))
@@ -219,7 +219,7 @@ object TodoComponent extends Component {
         table(
           tbody(
             tr(
-              td("Last action: ", child <-- store.map(_.lastAction))
+              td("Last action: ", child <-- store.source.map(_.lastAction))
             ),
             tr(
               td(todoModule),

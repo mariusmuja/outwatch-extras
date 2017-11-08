@@ -20,8 +20,7 @@ trait Styles[S] {
     Continue
   }
 
-  trait Publish {
-    self: S =>
+  trait Publish { self: S =>
     publish(self)
   }
 

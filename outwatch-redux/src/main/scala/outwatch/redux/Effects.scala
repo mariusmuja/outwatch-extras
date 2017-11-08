@@ -21,17 +21,17 @@ trait Effects[Effect, EffectResult] {
 
   def effects: Effect => Observable[EffectResult]
 
-  object Switch extends Handler[Effect, EffectResult] {
+  object Switch extends >-->[Effect, EffectResult] {
     def sink: Sink[Effect] = handler
     lazy val source: Source[EffectResult] = handler.switchMap(effects).share
   }
 
-  object Merge extends Handler[Effect, EffectResult] {
+  object Merge extends >-->[Effect, EffectResult] {
     def sink: Sink[Effect] = handler
     lazy val source: Source[EffectResult] = handler.mergeMap(effects).share
   }
 
-  object Concat extends Handler[Effect, EffectResult] {
+  object Concat extends >-->[Effect, EffectResult] {
     def sink: Sink[Effect] = handler
     lazy val source: Source[EffectResult] = handler.concatMap(effects).share
   }
