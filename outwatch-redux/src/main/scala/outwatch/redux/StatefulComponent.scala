@@ -25,7 +25,7 @@ trait EvolvableEffectsState[Action, Effect, State] { self: State =>
 }
 
 
-trait Component {
+trait StatefulComponent {
   type Action
   type ActionSink = Sink[Action]
 
@@ -36,7 +36,7 @@ trait Component {
   val >--> = outwatch.redux.>-->
 }
 
-trait EffectsComponent {
+trait StatefulEffectsComponent {
   type Action
   type ActionSink = Sink[Action]
 

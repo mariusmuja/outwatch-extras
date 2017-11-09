@@ -19,7 +19,7 @@ import scalacss.DevDefaults._
 
 
 
-object Logger extends EffectsComponent with LogAreaStyle {
+object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
   sealed trait Action
   case class Init(message: String) extends Action
@@ -125,7 +125,7 @@ object TextField extends TextFieldStyle {
 }
 
 
-object TodoModule extends Component with
+object TodoModule extends StatefulComponent with
                           TodoModuleStyle {
 
   sealed trait Action
@@ -193,7 +193,7 @@ object TodoModule extends Component with
   }
 }
 
-object TodoComponent extends Component {
+object TodoComponent extends StatefulComponent {
 
   sealed trait Action
   case class AddTodo(value: String) extends Action
