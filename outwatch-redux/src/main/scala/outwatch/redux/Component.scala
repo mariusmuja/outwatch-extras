@@ -32,7 +32,8 @@ trait Component {
   protected type ComponentState = EvolvableState[Action, State]
   protected type State <: ComponentState
 
-  type ComponentStore = Store[State, Action]
+  type >-->[-I, +O] = outwatch.redux.>-->[I, O]
+  val >--> = outwatch.redux.>-->
 }
 
 trait EffectsComponent {
@@ -45,5 +46,6 @@ trait EffectsComponent {
   protected type ComponentState = EvolvableEffectsState[Action, Effect, State]
   protected type State <: ComponentState
 
-  type ComponentStore = Store[State, Action]
+  type >-->[-I, +O] = outwatch.redux.>-->[I, O]
+  val >--> = outwatch.redux.>-->
 }

@@ -48,6 +48,7 @@ object Logger extends EffectsComponent with LogAreaStyle {
   def view(handler: Action >--> State)(implicit S: Style): VNode = {
     import outwatch.dom._
 
+
     div(
       div(
         input(value <-- handler.source.map(_.log.lastOption.getOrElse(""))),
