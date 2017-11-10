@@ -69,13 +69,13 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
   }
 
   def apply(initActions: Action*): VNode = {
-    Store.create(initActions, State(), Console.Merge.map(consoleToAction))
+    Store.create(initActions, State(), Console.merge.map(_.map(consoleToAction)))
       .flatMap(view)
   }
 
   def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
 
-    Store.create(initActions, State(), Console.Merge.map(consoleToAction)).map { store =>
+    Store.create(initActions, State(), Console.merge.map(_.map(consoleToAction))).map { store =>
       (view(store), store.sink)
     }
   }
@@ -166,12 +166,8 @@ object TodoModule extends StatefulComponent with
       case AddTodo(value) => TodoComponent.AddTodo(value)
       case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
     }
-    val consoleSink = Console.sink.redirectMap[Action] {
-      case AddTodo(value) => ConsoleEffect.Log(value)
-      case RemoveTodo(todo) => ConsoleEffect.Log(todo.value)
-    }
 
-    SinkUtil.redirectInto(store.sink, loggerSink, parentSink, consoleSink).flatMap { actions =>
+    SinkUtil.redirectInto(store.sink, loggerSink, parentSink).flatMap { actions =>
 
       val todoViews = store.source.map(_.todos.map(todoItem(_, actions, S)))
 

@@ -49,22 +49,24 @@ object Store {
   def create[Action, Effect, State <: EvolvableEffectsState[Action, Effect, State]](
     initActions: Seq[Action],
     initialState: State,
-    effectHandler: Effect >--> Action,
+    effects: IO[Effect >--> Action],
   ): IO[Action >--> State] = {
 
-    Handlers.createHandler[Action](initActions :_*).map { handler =>
+    Handlers.createHandler[Action](initActions :_*).flatMap { handler =>
+      effects.map { effectHandler =>
 
-      val reducer: (State, Action) => State = (state, action) => {
-        val (newState, effects) = state.evolve(action)
-        effects.subscribe(effectHandler.sink.observer.onNext _)
-        newState
+        val reducer: (State, Action) => State = (state, action) => {
+          val (newState, effects) = state.evolve(action)
+          effects.subscribe(effectHandler.sink.observer.onNext _)
+          newState
+        }
+
+        val source: Observable[State] = Observable.merge(handler, effectHandler.source)
+          .scan(initialState)(reducer)
+          .startWith(Seq(initialState))
+
+        HandlerPipe(handler, source.replay(1).refCount)
       }
-
-      val source: Observable[State] = Observable.merge(handler, effectHandler.source)
-        .scan(initialState)(reducer)
-        .startWith(Seq(initialState))
-
-      HandlerPipe(handler, source.replay(1).refCount)
     }
   }
 }

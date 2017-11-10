@@ -32,8 +32,8 @@ trait StatefulComponent {
   protected type ComponentState = EvolvableState[Action, State]
   protected type State <: ComponentState
 
-  type >-->[-I, +O] = outwatch.redux.>-->[I, O]
-  val >--> = outwatch.redux.>-->
+  type >-->[-I, +O] = outwatch.redux.Pipe[I, O]
+  val >--> = outwatch.redux.Pipe
 }
 
 trait StatefulEffectsComponent {
@@ -46,6 +46,6 @@ trait StatefulEffectsComponent {
   protected type ComponentState = EvolvableEffectsState[Action, Effect, State]
   protected type State <: ComponentState
 
-  type >-->[-I, +O] = outwatch.redux.>-->[I, O]
-  val >--> = outwatch.redux.>-->
+  type >-->[-I, +O] = outwatch.redux.Pipe[I, O]
+  val >--> = outwatch.redux.Pipe
 }
