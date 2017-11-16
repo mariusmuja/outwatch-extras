@@ -16,6 +16,7 @@ trait Mdl {
   private val upgradeElement = Sink.create[dom.Element] { e =>
     IO {
       val componentHandler = js.Dynamic.global.componentHandler
+      e.removeAttribute("data-upgraded")
       if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
       Continue
     }

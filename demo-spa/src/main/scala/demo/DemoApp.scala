@@ -1,7 +1,7 @@
 package demo
 
 import cats.effect.IO
-import demo.Router.{LogPage, Page, TodoPage}
+import demo.Router.{LogPage, Page_, TodoPage}
 import demo.styles._
 import monix.execution.Ack, Ack.Continue
 import monix.execution.Scheduler.Implicits.global
@@ -36,7 +36,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
     val evolve = {
       case InitEffect(message) =>
-        ConsoleEffect.Log(message)
+        this -> ConsoleEffect.Log(message)
       case Init(message) =>
         copy(log :+ message)
       case LogAction(line) =>
@@ -69,13 +69,13 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
   }
 
   def apply(initActions: Action*): VNode = {
-    Store.create(initActions, State(), Console.merge.map(_.map(consoleToAction)))
+    Store.create(initActions, State(), Console.merge.map(_.mapSource(consoleToAction)))
       .flatMap(view)
   }
 
   def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
 
-    Store.create(initActions, State(), Console.merge.map(_.map(consoleToAction))).map { store =>
+    Store.create(initActions, State(), Console.merge.map(_.mapSource(consoleToAction))).map { store =>
       (view(store), store.sink)
     }
   }
@@ -241,9 +241,9 @@ object TodoComponent extends StatefulComponent {
 
 object Router extends OutwatchRouter {
 
-  sealed trait Page
-  object TodoPage extends Page
-  case class LogPage(last: Int) extends Page
+  sealed trait Page_
+  object TodoPage extends Page_
+  case class LogPage(last: Int) extends Page_
 
   val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
@@ -299,7 +299,7 @@ object DemoApp {
 
   import outwatch.dom.OutWatch
 
-  val updatePageTitle : Page => Future[Ack] = {
+  val updatePageTitle : Page_ => Future[Ack] = {
     case TodoPage =>
       dom.document.title = "TODO list"
       Continue
@@ -316,4 +316,5 @@ object DemoApp {
 
     OutWatch.render("#app", Router(BaseLayout.apply)).unsafeRunSync()
   }
+
 }

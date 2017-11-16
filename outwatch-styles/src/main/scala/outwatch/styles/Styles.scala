@@ -1,7 +1,7 @@
 package outwatch.styles
 
 import monix.execution.Ack.Continue
-import monix.execution.Cancelable
+import monix.execution.{Ack, Cancelable}
 import monix.reactive.subjects.ConcurrentSubject
 import monix.execution.Scheduler.Implicits.global
 
@@ -13,7 +13,7 @@ import scalacss.defaults.Exports.StyleSheet
 trait Styles[S] {
   private val styles = ConcurrentSubject.publish[S]
 
-  def publish(s: S): Unit = styles.onNext(s)
+  def publish(s: S): Ack = styles.onNext(s)
 
   def subscribe(f: S => Unit): Cancelable = styles.subscribe { s =>
     f(s)
