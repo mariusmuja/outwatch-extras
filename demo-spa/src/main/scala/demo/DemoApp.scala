@@ -1,12 +1,14 @@
 package demo
 
 import cats.effect.IO
-import demo.Router.{LogPage, Page_, TodoPage}
+import demo.Router.{LogPage, Page, TodoPage}
 import demo.styles._
-import monix.execution.Ack, Ack.Continue
+import monix.execution.Ack
+import Ack.Continue
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
 import outwatch.dom.{Observable, Sink, VNode}
+import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
 import outwatch.router.{BaseUrl, Router => OutwatchRouter}
 import outwatch.styles.Styles
@@ -45,7 +47,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
     }
   }
 
-  def view(handler: Action >--> State)(implicit S: Style): VNode = {
+  def view(handler: State <--< Action)(implicit S: Style): VNode = {
     import outwatch.dom._
 
 
@@ -241,9 +243,9 @@ object TodoComponent extends StatefulComponent {
 
 object Router extends OutwatchRouter {
 
-  sealed trait Page_
-  object TodoPage extends Page_
-  case class LogPage(last: Int) extends Page_
+  sealed trait Page
+  object TodoPage extends Page
+  case class LogPage(last: Int) extends Page
 
   val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
@@ -299,7 +301,7 @@ object DemoApp {
 
   import outwatch.dom.OutWatch
 
-  val updatePageTitle : Page_ => Future[Ack] = {
+  val updatePageTitle : Page => Future[Ack] = {
     case TodoPage =>
       dom.document.title = "TODO list"
       Continue

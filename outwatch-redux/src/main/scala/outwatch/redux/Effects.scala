@@ -3,6 +3,8 @@ package outwatch.redux
 import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
 import outwatch.dom.{Handlers, Observable}
+import outwatch.extras.Pipe
+import outwatch.extras.>-->
 
 trait Effects[Effect, EffectResult] {
 

@@ -1,6 +1,7 @@
 package outwatch.redux
 
 import cats.effect.IO
+import outwatch.Sink
 import outwatch.dom.Handlers
 
 /**

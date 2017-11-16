@@ -66,6 +66,14 @@ lazy val styles = project.in(file("outwatch-styles"))
   )
   .enablePlugins(ScalaJSPlugin)
 
+lazy val util = project.in(file("outwatch-util"))
+  .settings(
+    name := "outwatch-util",
+    libraryDependencies ++=
+      "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
+        Nil
+  )
+  .enablePlugins(ScalaJSPlugin)
 
 lazy val mdl = project.in(file("outwatch-mdl"))
   .settings(
@@ -84,6 +92,7 @@ lazy val router = project.in(file("outwatch-router"))
         "org.scala-lang" % "scala-reflect" % scalaVersion.value ::
         Nil
   )
+  .dependsOn(util)
   .enablePlugins(ScalaJSPlugin)
 
 
@@ -94,5 +103,6 @@ lazy val redux = project.in(file("outwatch-redux"))
       "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
         Nil
   )
+  .dependsOn(util)
   .enablePlugins(ScalaJSPlugin)
 

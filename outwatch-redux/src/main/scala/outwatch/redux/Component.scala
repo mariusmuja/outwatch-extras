@@ -1,5 +1,6 @@
 package outwatch.redux
 
+import outwatch.Sink
 import outwatch.dom.Observable
 
 import scala.language.implicitConversions
@@ -35,8 +36,6 @@ trait StatefulComponent {
 
   protected type ComponentState = EvolvableState[Action, State]
   protected type State <: ComponentState
-
-  type >-->[-I, +O] = outwatch.redux.Pipe[I, O]
 }
 
 trait StatefulEffectsComponent {
@@ -48,6 +47,4 @@ trait StatefulEffectsComponent {
 
   protected type ComponentState = EvolvableStateWithEffects[Action, State, Effect]
   protected type State <: ComponentState
-
-  type >-->[-I, +O] = outwatch.redux.Pipe[I, O]
 }
