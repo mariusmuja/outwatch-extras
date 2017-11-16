@@ -1,13 +1,14 @@
 package outwatch.router
 
+import cats.effect.IO
 import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.cancelables.SingleAssignmentCancelable
 import monix.execution.{Ack, Cancelable}
 import monix.reactive.OverflowStrategy.Unbounded
 import org.scalajs.dom
-import outwatch.Sink
-import outwatch.dom.{Handlers, VNode, Observable}
+import outwatch.dom.{Handlers, Observable, VNode}
+import outwatch.extras.{>-->, Pipe}
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
@@ -18,26 +19,28 @@ import scala.scalajs.js
   * Created by marius on 26/06/17.
   */
 
-trait Router {
+object Router {
 
-  type Page
+  def set[Page](page: Page) = Action(page)
+  def replace[Page](page: Page) = Action(page, replace = true)
 
-  case class Redirect[+Page](page: Page, replace: Boolean = false)
+  case class Action[+Page](page: Page, replace: Boolean = false)
+  case class State[+Page](page: Page, node: VNode)
 
-  private val pageHandler = Handlers.createHandler[Redirect[Page]]().unsafeRunSync()
+  private type Parsed[+Page] = Either[Action[Page], Page]
 
-  val set : Sink[Page] = pageHandler.redirectMap(p => Redirect(p))
-  val replace : Sink[Page] = pageHandler.redirectMap(p => Redirect(p, replace = true))
-
-  protected type Parsed[Page] = Either[Redirect[Page], Page]
-
-  protected case class Rule[Page](
+  case class Rule[Page](
     parse: Path => Option[Parsed[Page]],
     path: Page => Option[Path],
     target: Page => Option[VNode]
   )
 
-  protected class RouterConfig[Page](rules: Seq[Rule[Page]], notFound: Parsed[Page]) {
+
+  private def missingRuleFor[P](page: P): VNode = {
+    outwatch.dom.div(s"Page not found, check the routes config")
+  }
+
+  class Config[Page] private (rules: Seq[Rule[Page]], notFound: Parsed[Page]) {
 
     @tailrec
     private def findFirst[T, R](list: List[T => Option[R]])(arg: T): Option[R] = {
@@ -54,11 +57,25 @@ trait Router {
     def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
 
     def target(page: Page): Option[VNode] = findFirst(rules.map(_.target).toList)(page)
+
+    def parseUrl(baseUrl: BaseUrl, absUrl: AbsUrl): Parsed[Page] = {
+      val path = Path(absUrl.value.replaceFirst(baseUrl.value, ""))
+      val parsed = parse(path)
+      parsed
+    }
+
+    def pageToUrl(baseUrl: BaseUrl, page: Page): AbsUrl = {
+      path(page).getOrElse(Path.root).abs(baseUrl)
+    }
+
+    def pageToNode(page: Page) : VNode = {
+      target(page).getOrElse(missingRuleFor(page))
+    }
   }
 
-  protected object RouterConfig {
+  object Config {
 
-    case class RouterConfigBuilder[Page](rules: Seq[Rule[Page]]) extends PathParser {
+    case class Builder[Page] private(rules: Seq[Rule[Page]]) extends PathParser {
 
       implicit def toVNodeFunc[P](f: => VNode): P => VNode = _ => f
 
@@ -71,57 +88,22 @@ trait Router {
       }
 
       implicit class toRedirect[P](rf: RouteFragment[P]) {
-        def ~>[P2 <: Page](f: => Redirect[P2]): Rule[P2] = Rule(
+        def ~>[P2 <: Page](f: => Action[P2]): Rule[P2] = Rule(
           p => rf.route.parse(p).map(p => Left(f)),
           p => None,
           p => None
         )
       }
 
-      def rules(r: Rule[Page]*): RouterConfigBuilder[Page] = this.copy(rules = r)
+      def rules(r: Rule[Page]*): Builder[Page] = copy(rules = r)
 
-      def notFound(page: Redirect[Page]) = new RouterConfig[Page](rules, Left(page))
+      def notFound(page: Action[Page]) = new Config[Page](rules, Left(page))
     }
 
-    def apply(builder: (RouterConfigBuilder[Page]) => RouterConfig[Page]): RouterConfig[Page] =
-      builder(RouterConfigBuilder[Page](Seq.empty))
+    def apply[Page](builder: Builder[Page] => Config[Page]): Config[Page] =
+      builder(Builder[Page](Seq.empty))
   }
 
-
-
-  protected val config : RouterConfig[Page]
-
-  val baseUrl : BaseUrl
-
-  private def parseUrl(absUrl: AbsUrl): Parsed[Page] = {
-    val path = Path(absUrl.value.replaceFirst(baseUrl.value, ""))
-    val parsed = config.parse(path)
-    parsed
-  }
-
-  private def pageToUrl(page: Page): AbsUrl = {
-    val path = config.path(page).getOrElse(Path.root)
-    path.abs(baseUrl)
-  }
-
-  protected def missingRuleFor(page: Page): VNode = {
-    outwatch.dom.div(s"Page not found, check the routes config")
-  }
-
-  private def pageToNode(page: Page) : VNode = {
-    config.target(page).getOrElse(missingRuleFor(page))
-  }
-
-  private val parsedToPageWithEffects: Parsed[Page] => Page = {
-    case Right(page) =>
-      page
-    case Left(Redirect(page, true)) =>
-      dom.window.history.replaceState("", "", pageToUrl(page).value)
-      page
-    case Left(Redirect(page, false)) =>
-      dom.window.history.pushState("", "", pageToUrl(page).value)
-      page
-  }
 
   private def fromEvent(target: dom.EventTarget, event: String): Observable[dom.Event] =
     Observable.create(Unbounded) { subscriber =>
@@ -134,22 +116,36 @@ trait Router {
       c := Cancelable(() => target.removeEventListener(event, eventHandler))
     }
 
-  private val popStateObservable = fromEvent(dom.window, "popstate")
-    .startWith(Seq(""))
-    .map { _ => parseUrl(AbsUrl.fromWindow) }
 
-  val pageChanged: Observable[Page] = Observable.merge(
-    popStateObservable,
-    pageHandler.map(r => Left(r))
-  )
-    .map(parsedToPageWithEffects)
-    .replay(1)
-    .refCount
+  def create[Page](config: Config[Page], baseUrl: BaseUrl): IO[Action[Page] >--> State[Page]] = {
+    Handlers.createHandler[Action[Page]]().map { pageHandler =>
 
-  private val vnodeSource = pageChanged.map(pageToNode)
-  private val defaultBaseLayout: Observable[VNode] => VNode = { vnode =>
-    outwatch.dom.div(outwatch.dom.child <-- vnode)
+      val parsedToPageWithEffects: Parsed[Page] => Page = {
+        case Right(page) =>
+          page
+        case Left(Action(page, true)) =>
+          dom.window.history.replaceState("", "", config.pageToUrl(baseUrl, page).value)
+          page
+        case Left(Action(page, false)) =>
+          dom.window.history.pushState("", "", config.pageToUrl(baseUrl, page).value)
+          page
+      }
+
+      val popStateObservable = fromEvent(dom.window, "popstate")
+        .startWith(Seq(""))
+        .map { _ => config.parseUrl(baseUrl, AbsUrl.fromWindow) }
+
+      val pageChanged: Observable[Page] = Observable.merge(
+        popStateObservable,
+        pageHandler.map(r => Left(r))
+      )
+        .map(parsedToPageWithEffects)
+        .replay(1)
+        .refCount
+
+      val source = pageChanged.map(p => State(p, config.pageToNode(p)))
+
+      Pipe(pageHandler, source)
+    }
   }
-
-  def apply(baseLayout: Observable[VNode] => VNode = defaultBaseLayout): VNode = baseLayout(vnodeSource)
 }

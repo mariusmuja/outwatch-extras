@@ -1,7 +1,6 @@
 package demo
 
 import cats.effect.IO
-import demo.Router.{LogPage, Page, TodoPage}
 import demo.styles._
 import monix.execution.Ack
 import Ack.Continue
@@ -10,10 +9,9 @@ import org.scalajs.dom
 import outwatch.dom.{Observable, Sink, VNode}
 import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
-import outwatch.router.{BaseUrl, Router => OutwatchRouter}
+import outwatch.router.{BaseUrl, Router}
 import outwatch.styles.Styles
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.scalajs.js.Date
 import scala.util.Random
@@ -49,13 +47,13 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
   def view(handler: State <--< Action)(implicit S: Style): VNode = {
     import outwatch.dom._
-
+    import AppRouter._
 
     div(
       div(
         input(value <-- handler.source.map(_.log.lastOption.getOrElse(""))),
         button(
-          click(Router.LogPage(1)) --> Router.replace, "Goto"
+          click(Router.replace(LogPage(1))) --> router.sink, "Goto"
         )
       ),
       div(
@@ -159,6 +157,7 @@ object TodoModule extends StatefulComponent with
 
   def view(store: Action >--> State,  logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
     import outwatch.dom._
+    import AppRouter._
 
     val loggerSink = logger.redirectMap[Action]{
       case AddTodo(value) => Logger.LogAction(s"Add $value")
@@ -173,14 +172,16 @@ object TodoModule extends StatefulComponent with
 
       val todoViews = store.source.map(_.todos.map(todoItem(_, actions, S)))
 
+
       div(
         TextField(actions.redirectMap(AddTodo)),
         button(S.button, S.material,
-          click(Router.LogPage(10)) --> Router.set, "Log only"
+          click(Router.set(LogPage(10))) --> router, "Log only"
         ),
         ul(children <-- todoViews)
       )
     }
+
   }
 
   def apply(logger: Logger.ActionSink,
@@ -241,7 +242,7 @@ object TodoComponent extends StatefulComponent {
 
 
 
-object Router extends OutwatchRouter {
+object AppRouter {
 
   sealed trait Page
   object TodoPage extends Page
@@ -249,17 +250,19 @@ object Router extends OutwatchRouter {
 
   val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
-  val config = RouterConfig { builder =>
+  val config = Router.Config[Page] { builder =>
     import builder._
 
     builder
       .rules(
         ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
         "todo".const(TodoPage) ~> TodoComponent(),
-        "log".const(Unit) ~> Redirect(LogPage(11), replace = true)
+        "log".const(Unit) ~> Router.Action(LogPage(11), replace = true)
       )
-      .notFound(Redirect(TodoPage, replace = true))
+      .notFound(Router.Action(TodoPage, replace = true))
   }
+
+  val router = Router.create(config, baseUrl).unsafeRunSync()
 }
 
 sealed trait ConsoleEffect
@@ -299,24 +302,26 @@ object BaseLayout {
 
 object DemoApp {
 
-  import outwatch.dom.OutWatch
+  import outwatch.dom._
+  import AppRouter._
 
-  val updatePageTitle : Page => Future[Ack] = {
+  val updatePageTitle : Page => Unit = {
     case TodoPage =>
       dom.document.title = "TODO list"
-      Continue
     case LogPage(_) =>
       dom.document.title = "Log page"
-      Continue
   }
 
   def main(args: Array[String]): Unit = {
 
-    Router.pageChanged.subscribe(updatePageTitle)
+    router.map(_.page).subscribe { p =>
+      updatePageTitle(p)
+      Continue
+    }
 
     Styles.subscribe(_.addToDocument())
 
-    OutWatch.render("#app", Router(BaseLayout.apply)).unsafeRunSync()
+    OutWatch.render("#app", BaseLayout(router.map(_.node))).unsafeRunSync()
   }
 
 }
