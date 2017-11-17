@@ -261,9 +261,9 @@ object AppRouter {
       .rules(
         ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
         "todo".const(TodoPage) ~> TodoComponent(),
-        "log".const(Unit) ~> Router.Action(LogPage(11), replace = true)
+        "log".const(Unit) ~> Router.Replace(LogPage(11))
       )
-      .notFound(Router.Action(TodoPage, replace = true))
+      .notFound(Router.Replace(TodoPage))
   }
 
 

@@ -22,10 +22,15 @@ import scala.scalajs.js
 
 trait Router[Page] {
 
-  def set(page: Page) = Action(page)
-  def replace(page: Page) = Action(page, replace = true)
+  def set(page: Page) = Push(page)
+  def replace(page: Page) = Replace(page)
+  def url(url: AbsUrl) = Force(url)
 
-  case class Action(page: Page, replace: Boolean = false)
+  sealed trait Action
+  case class Push(page: Page) extends Action
+  case class Replace(page: Page) extends Action
+  case class Force(url: AbsUrl) extends Action
+
   case class State(page: Option[Page], node: VNode)
 
   private type Parsed = Either[Action, Page]
@@ -63,7 +68,7 @@ trait Router[Page] {
     }
   }
 
-  private def invalidConfiguration[P](page: P): (Option[P], VNode) = {
+  private def invalidConfiguration(page: Page): (Option[Page], VNode) = {
     import outwatch.dom._
     Some(page) -> div(stl("color") := "red", s"Invalid configuration, missing rule for ${page.getClass.getName}")
   }
@@ -119,18 +124,22 @@ trait Router[Page] {
       c := Cancelable(() => target.removeEventListener(event, eventHandler))
     }
 
+  private object RedirectException extends Exception("Redirecting...")
 
   def create(config: Config, baseUrl: BaseUrl): IO[Action >--> State] = {
     Handlers.createHandler[Action]().map { pageHandler =>
       val parsedToPageWithEffects: Parsed => Page = {
         case Right(page) =>
           page
-        case Left(Action(page, true)) =>
+        case Left(Replace(page)) =>
           dom.window.history.replaceState("", "", config.pageToUrl(baseUrl, page).value)
           page
-        case Left(Action(page, false)) =>
+        case Left(Push(page)) =>
           dom.window.history.pushState("", "", config.pageToUrl(baseUrl, page).value)
           page
+        case Left(Force(url)) =>
+          dom.window.location.href = url.value
+          throw RedirectException
       }
 
       val popStateObservable = fromEvent(dom.window, "popstate")
@@ -150,7 +159,7 @@ trait Router[Page] {
 
       val source = pageChanged.map { pageOpt =>
 
-        val (page, node) = pageOpt.flatMap(pageToNode)
+        val (page, node): (Option[Page], VNode) = pageOpt.flatMap(pageToNode)
           .getOrElse(
             config.notFound.fold(
               action => {
