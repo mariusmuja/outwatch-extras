@@ -39,7 +39,7 @@ val noPublish = Seq(
 )
 
 lazy val root = project.in(file("."))
-  .aggregate(app, redux, styles, mdl, router)
+  .aggregate(app, redux, styles, mdl, router, util)
   .settings(noPublish: _*)
 
 

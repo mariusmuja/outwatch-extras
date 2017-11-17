@@ -56,6 +56,7 @@ object Store {
       effects.map { effectHandler =>
 
         val reducer: (State, Action) => State = (state, action) => {
+          println(s" --> In reducer: $action")
           val se = state.evolve(action)
           se.effects.subscribe(effectHandler.sink.observer.onNext _)
           se.state

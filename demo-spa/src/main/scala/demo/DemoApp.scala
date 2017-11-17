@@ -108,6 +108,7 @@ object TextField extends TextFieldStyle {
           input(S.textinput,
             inputString --> inputTodo,
             value <-- inputTodo,
+            prop("value") <-- inputTodo,
             enterdown(inputTodo) --> filteredActions,
             enterdown("") --> inputTodoFiltered
           )
