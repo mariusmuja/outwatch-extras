@@ -20,17 +20,17 @@ import scala.scalajs.js
   * Created by marius on 26/06/17.
   */
 
-object Router {
+trait Router[Page] {
 
-  def set[Page](page: Page) = Action(page)
-  def replace[Page](page: Page) = Action(page, replace = true)
+  def set(page: Page) = Action(page)
+  def replace(page: Page) = Action(page, replace = true)
 
-  case class Action[+Page](page: Page, replace: Boolean = false)
-  case class State[+Page](page: Option[Page], node: VNode)
+  case class Action(page: Page, replace: Boolean = false)
+  case class State(page: Option[Page], node: VNode)
 
-  private type Parsed[+Page] = Either[Action[Page], Page]
+  private type Parsed = Either[Action, Page]
 
-  private[Router] class Config[Page] private (rules: Seq[Config.Rule[Page]], val notFound: Either[Action[Page], VNode]) {
+  class Config private (rules: Seq[Config.Rule], val notFound: Either[Action, VNode]) {
 
     @tailrec
     private def findFirst[T, R](list: List[T => Option[R]])(arg: T): Option[R] = {
@@ -42,13 +42,13 @@ object Router {
       }
     }
 
-    private def parse(path: Path): Option[Parsed[Page]] = findFirst(rules.map(_.parse).toList)(path)
+    private def parse(path: Path): Option[Parsed] = findFirst(rules.map(_.parse).toList)(path)
 
     private def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
 
     private def target(page: Page): Option[VNode] = findFirst(rules.map(_.target).toList)(page)
 
-    def parseUrl(baseUrl: BaseUrl, absUrl: AbsUrl): Option[Parsed[Page]] = {
+    def parseUrl(baseUrl: BaseUrl, absUrl: AbsUrl): Option[Parsed] = {
       val path = Path(absUrl.value.replaceFirst(baseUrl.value, ""))
       val parsed = parse(path)
       parsed
@@ -70,18 +70,18 @@ object Router {
 
   object Config {
 
-    private[Config] case class Rule[Page](
-      parse: Path => Option[Parsed[Page]],
+    private[Config] case class Rule(
+      parse: Path => Option[Parsed],
       path: Page => Option[Path],
       target: Page => Option[VNode]
     )
 
-    private[Config] case class Builder[Page] private(rules: Seq[Rule[Page]]) extends PathParser {
+    private[Config] case class Builder private(rules: Seq[Rule]) extends PathParser {
 
       implicit def toVNodeFunc[P](f: => VNode): P => VNode = _ => f
 
       implicit class route[P <: Page](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
-        def ~>(f: => P => VNode): Rule[Page] = Rule(
+        def ~>(f: => P => VNode): Rule = Rule(
           p => rf.route.parse(p).map(p => Right(p)),
           p => ct.unapply(p).map(rf.route.pathFor),
           p => ct.unapply(p).map(f)
@@ -89,22 +89,22 @@ object Router {
       }
 
       implicit class toRedirect[P](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
-        def ~>[P2 <: Page](f: => Action[P2]): Rule[P2] = Rule(
+        def ~>(f: => Action): Rule = Rule(
           p => rf.route.parse(p).map(p => Left(f)),
           p => ct.unapply(p).map(rf.route.pathFor),
           p => None
         )
       }
 
-      def rules(r: Rule[Page]*): Builder[Page] = copy(rules = r)
+      def rules(r: Rule*): Builder = copy(rules = r)
 
-      def notFound(page: Action[Page]) = new Config[Page](rules, Left(page))
+      def notFound(page: Action) = new Config(rules, Left(page))
 
-      def notFound(node: VNode) = new Config[Page](rules, Right(node))
+      def notFound(node: VNode) = new Config(rules, Right(node))
     }
 
-    def apply[Page](builder: Builder[Page] => Config[Page]): Config[Page] =
-      builder(Builder[Page](Seq.empty))
+    def apply(builder: Builder => Config): Config =
+      builder(Builder(Seq.empty))
   }
 
 
@@ -120,9 +120,9 @@ object Router {
     }
 
 
-  def create[Page](config: Config[Page], baseUrl: BaseUrl): IO[Action[Page] >--> State[Page]] = {
-    Handlers.createHandler[Action[Page]]().map { pageHandler =>
-      val parsedToPageWithEffects: Parsed[Page] => Page = {
+  def create(config: Config, baseUrl: BaseUrl): IO[Action >--> State] = {
+    Handlers.createHandler[Action]().map { pageHandler =>
+      val parsedToPageWithEffects: Parsed => Page = {
         case Right(page) =>
           page
         case Left(Action(page, true)) =>
@@ -134,7 +134,7 @@ object Router {
       }
 
       val popStateObservable = fromEvent(dom.window, "popstate")
-        .startWith(Seq(""))
+        .startWith(Seq(()))
         .map { _ => config.parseUrl(baseUrl, AbsUrl.fromWindow) }
 
       val pageChanged: Observable[Option[Page]] = Observable.merge(
@@ -168,18 +168,18 @@ object Router {
     }
   }
 
-  private val ref = STRef.empty
+  private val ref = STRef.empty[Action >--> State]
 
   private object NoRouterException extends
     Exception("A router was not created, please use Router.createRef to create the router")
 
-  def createRef[Page](config: Config[Page], baseUrl: BaseUrl): IO[Action[Page] >--> State[Page]] = {
+  def createRef(config: Config, baseUrl: BaseUrl): IO[Action >--> State] = {
     create(config, baseUrl).flatMap { router =>
-      ref.asInstanceOf[STRef[Action[Page] >--> State[Page]]].put(router)
+      ref.put(router)
     }
   }
 
-  def get[Page]: IO[Action[Page] >--> State[Page]] = {
-    ref.asInstanceOf[STRef[Action[Page] >--> State[Page]]].getOrThrow(NoRouterException)
+  def get: IO[Action >--> State] = {
+    ref.getOrThrow(NoRouterException)
   }
 }

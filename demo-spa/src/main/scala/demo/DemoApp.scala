@@ -2,14 +2,13 @@ package demo
 
 import cats.effect.IO
 import demo.styles._
-import monix.execution.Ack
-import Ack.Continue
+import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
 import outwatch.dom.{Observable, Sink, VNode}
 import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
-import outwatch.router.{BaseUrl, Router}
+import outwatch.router.BaseUrl
 import outwatch.styles.Styles
 
 import scala.concurrent.duration._
@@ -46,8 +45,8 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
   }
 
   def view(handler: State <--< Action)(implicit S: Style): VNode = {
-    import outwatch.dom._
     import AppRouter._
+    import outwatch.dom._
 
     router.flatMap { router =>
       div(
@@ -158,8 +157,8 @@ object TodoModule extends StatefulComponent with
   }
 
   def view(store: Action >--> State,  logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
-    import outwatch.dom._
     import AppRouter._
+    import outwatch.dom._
 
     val loggerSink = logger.redirectMap[Action]{
       case AddTodo(value) => Logger.LogAction(s"Add $value")
@@ -253,7 +252,9 @@ object AppRouter {
 
   val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
-  val config = Router.Config[Page] { builder =>
+  object Router extends outwatch.router.Router[Page]
+
+  val config = Router.Config { builder =>
     import builder._
 
     builder
@@ -269,7 +270,7 @@ object AppRouter {
 //  val router = Router.create(config, baseUrl).unsafeRunSync()
 
   val create = Router.createRef(config, baseUrl)
-  val router = Router.get[Page]
+  val router = Router.get
 }
 
 sealed trait ConsoleEffect
@@ -309,8 +310,8 @@ object BaseLayout {
 
 object DemoApp {
 
-  import outwatch.dom._
   import AppRouter._
+  import outwatch.dom._
 
   val updatePageTitle : Option[Page] => Unit = {
     case Some(TodoPage) =>
