@@ -7,6 +7,7 @@ import monix.execution.cancelables.SingleAssignmentCancelable
 import monix.execution.{Ack, Cancelable}
 import monix.reactive.OverflowStrategy.Unbounded
 import org.scalajs.dom
+import outwatch.dom.helpers.STRef
 import outwatch.dom.{Handlers, Observable, VNode}
 import outwatch.extras.{>-->, Pipe}
 
@@ -165,5 +166,20 @@ object Router {
 
       Pipe(pageHandler, source)
     }
+  }
+
+  private val ref = STRef.empty
+
+  private object NoRouterException extends
+    Exception("A router was not created, please use Router.createRef to create the router")
+
+  def createRef[Page](config: Config[Page], baseUrl: BaseUrl): IO[Action[Page] >--> State[Page]] = {
+    create(config, baseUrl).flatMap { router =>
+      ref.asInstanceOf[STRef[Action[Page] >--> State[Page]]].put(router)
+    }
+  }
+
+  def get[Page]: IO[Action[Page] >--> State[Page]] = {
+    ref.asInstanceOf[STRef[Action[Page] >--> State[Page]]].getOrThrow(NoRouterException)
   }
 }

@@ -49,19 +49,21 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
     import outwatch.dom._
     import AppRouter._
 
-    div(
+    router.flatMap { router =>
       div(
-        input(value <-- handler.map(_.log.lastOption.getOrElse(""))),
-        button(
-          click(Router.replace(LogPage(1))) --> router, "Goto"
-        )
-      ),
-      div(
-        textarea(S.textfield, S.material,
-          child <-- handler.map(_.log.mkString("\n"))
+        div(
+          input(value <-- handler.map(_.log.lastOption.getOrElse(""))),
+          button(
+            click(Router.replace(LogPage(1))) --> router, "Goto"
+          )
+        ),
+        div(
+          textarea(S.textfield, S.material,
+            child <-- handler.map(_.log.mkString("\n"))
+          )
         )
       )
-    )
+    }
   }
 
   private val consoleToAction: ConsoleEffectResult => Action = {
@@ -172,14 +174,15 @@ object TodoModule extends StatefulComponent with
 
       val todoViews = store.map(_.todos.map(todoItem(_, actions, S)))
 
-
-      div(
-        TextField(actions.redirectMap(AddTodo)),
-        button(S.button, S.material,
-          click(Router.set(LogPage(10))) --> router, "Log only"
-        ),
-        ul(children <-- todoViews)
-      )
+      router.flatMap { router =>
+        div(
+          TextField(actions.redirectMap(AddTodo)),
+          button(S.button, S.material,
+            click(Router.set(LogPage(10))) --> router, "Log only"
+          ),
+          ul(children <-- todoViews)
+        )
+      }
     }
 
   }
@@ -262,7 +265,11 @@ object AppRouter {
       .notFound(Router.Action(TodoPage, replace = true))
   }
 
-  val router = Router.create(config, baseUrl).unsafeRunSync()
+
+//  val router = Router.create(config, baseUrl).unsafeRunSync()
+
+  val create = Router.createRef(config, baseUrl)
+  val router = Router.get[Page]
 }
 
 sealed trait ConsoleEffect
@@ -316,14 +323,16 @@ object DemoApp {
 
   def main(args: Array[String]): Unit = {
 
-    router.map(_.page).subscribe { p =>
-      updatePageTitle(p)
-      Continue
-    }
+    AppRouter.create.flatMap { router =>
+      router.map(_.page).subscribe { p =>
+        updatePageTitle(p)
+        Continue
+      }
 
-    Styles.subscribe(_.addToDocument())
+      Styles.subscribe(_.addToDocument())
 
-    OutWatch.render("#app", BaseLayout(router.map(_.node))).unsafeRunSync()
+      OutWatch.render("#app", BaseLayout(router.map(_.node)))
+    }.unsafeRunSync()
   }
 
 
