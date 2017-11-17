@@ -51,14 +51,14 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
     div(
       div(
-        input(value <-- handler.source.map(_.log.lastOption.getOrElse(""))),
+        input(value <-- handler.map(_.log.lastOption.getOrElse(""))),
         button(
-          click(Router.replace(LogPage(1))) --> router.sink, "Goto"
+          click(Router.replace(LogPage(1))) --> router, "Goto"
         )
       ),
       div(
         textarea(S.textfield, S.material,
-          child <-- handler.source.map(_.log.mkString("\n"))
+          child <-- handler.map(_.log.mkString("\n"))
         )
       )
     )
@@ -76,7 +76,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
   def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
 
     Store.create(initActions, State(), Console.merge.map(_.mapSource(consoleToAction))).map { store =>
-      (view(store), store.sink)
+      (view(store), store)
     }
   }
 }
@@ -168,9 +168,9 @@ object TodoModule extends StatefulComponent with
       case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
     }
 
-    SinkUtil.redirectInto(store.sink, loggerSink, parentSink).flatMap { actions =>
+    SinkUtil.redirectInto(store, loggerSink, parentSink).flatMap { actions =>
 
-      val todoViews = store.source.map(_.todos.map(todoItem(_, actions, S)))
+      val todoViews = store.map(_.todos.map(todoItem(_, actions, S)))
 
 
       div(
@@ -214,12 +214,12 @@ object TodoComponent extends StatefulComponent {
     Logger.withSink(Logger.InitEffect("Effect log"))
       .flatMap { case (logger, loggerSink) =>
 
-        val todoModule = TodoModule(loggerSink, store.sink)
+        val todoModule = TodoModule(loggerSink, store)
 
         table(
           tbody(
             tr(
-              td("Last action: ", child <-- store.source.map(_.lastAction))
+              td("Last action: ", child <-- store.map(_.lastAction))
             ),
             tr(
               td(todoModule),
@@ -305,11 +305,13 @@ object DemoApp {
   import outwatch.dom._
   import AppRouter._
 
-  val updatePageTitle : Page => Unit = {
-    case TodoPage =>
+  val updatePageTitle : Option[Page] => Unit = {
+    case Some(TodoPage) =>
       dom.document.title = "TODO list"
-    case LogPage(_) =>
+    case Some(LogPage(_)) =>
       dom.document.title = "Log page"
+    case None =>
+      dom.document.title = "Not found"
   }
 
   def main(args: Array[String]): Unit = {
@@ -323,5 +325,6 @@ object DemoApp {
 
     OutWatch.render("#app", BaseLayout(router.map(_.node))).unsafeRunSync()
   }
+
 
 }

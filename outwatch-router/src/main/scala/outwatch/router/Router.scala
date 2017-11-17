@@ -25,22 +25,11 @@ object Router {
   def replace[Page](page: Page) = Action(page, replace = true)
 
   case class Action[+Page](page: Page, replace: Boolean = false)
-  case class State[+Page](page: Page, node: VNode)
+  case class State[+Page](page: Option[Page], node: VNode)
 
   private type Parsed[+Page] = Either[Action[Page], Page]
 
-  case class Rule[Page](
-    parse: Path => Option[Parsed[Page]],
-    path: Page => Option[Path],
-    target: Page => Option[VNode]
-  )
-
-
-  private def missingRuleFor[P](page: P): VNode = {
-    outwatch.dom.div(s"Page not found, check the routes config")
-  }
-
-  class Config[Page] private (rules: Seq[Rule[Page]], notFound: Parsed[Page]) {
+  private[Router] class Config[Page] private (rules: Seq[Config.Rule[Page]], val notFound: Either[Action[Page], VNode]) {
 
     @tailrec
     private def findFirst[T, R](list: List[T => Option[R]])(arg: T): Option[R] = {
@@ -52,13 +41,13 @@ object Router {
       }
     }
 
-    def parse(path: Path): Parsed[Page] = findFirst(rules.map(_.parse).toList)(path).getOrElse(notFound)
+    private def parse(path: Path): Option[Parsed[Page]] = findFirst(rules.map(_.parse).toList)(path)
 
-    def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
+    private def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
 
-    def target(page: Page): Option[VNode] = findFirst(rules.map(_.target).toList)(page)
+    private def target(page: Page): Option[VNode] = findFirst(rules.map(_.target).toList)(page)
 
-    def parseUrl(baseUrl: BaseUrl, absUrl: AbsUrl): Parsed[Page] = {
+    def parseUrl(baseUrl: BaseUrl, absUrl: AbsUrl): Option[Parsed[Page]] = {
       val path = Path(absUrl.value.replaceFirst(baseUrl.value, ""))
       val parsed = parse(path)
       parsed
@@ -68,14 +57,25 @@ object Router {
       path(page).getOrElse(Path.root).abs(baseUrl)
     }
 
-    def pageToNode(page: Page) : VNode = {
-      target(page).getOrElse(missingRuleFor(page))
+    def pageToNode(page: Page) : Option[VNode] = {
+      target(page)
     }
+  }
+
+  private def invalidConfiguration[P](page: P): (Option[P], VNode) = {
+    import outwatch.dom._
+    Some(page) -> div(stl("color") := "red", s"Invalid configuration, missing rule for ${page.getClass.getName}")
   }
 
   object Config {
 
-    case class Builder[Page] private(rules: Seq[Rule[Page]]) extends PathParser {
+    private[Config] case class Rule[Page](
+      parse: Path => Option[Parsed[Page]],
+      path: Page => Option[Path],
+      target: Page => Option[VNode]
+    )
+
+    private[Config] case class Builder[Page] private(rules: Seq[Rule[Page]]) extends PathParser {
 
       implicit def toVNodeFunc[P](f: => VNode): P => VNode = _ => f
 
@@ -87,10 +87,10 @@ object Router {
         )
       }
 
-      implicit class toRedirect[P](rf: RouteFragment[P]) {
+      implicit class toRedirect[P](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
         def ~>[P2 <: Page](f: => Action[P2]): Rule[P2] = Rule(
           p => rf.route.parse(p).map(p => Left(f)),
-          p => None,
+          p => ct.unapply(p).map(rf.route.pathFor),
           p => None
         )
       }
@@ -98,6 +98,8 @@ object Router {
       def rules(r: Rule[Page]*): Builder[Page] = copy(rules = r)
 
       def notFound(page: Action[Page]) = new Config[Page](rules, Left(page))
+
+      def notFound(node: VNode) = new Config[Page](rules, Right(node))
     }
 
     def apply[Page](builder: Builder[Page] => Config[Page]): Config[Page] =
@@ -119,7 +121,6 @@ object Router {
 
   def create[Page](config: Config[Page], baseUrl: BaseUrl): IO[Action[Page] >--> State[Page]] = {
     Handlers.createHandler[Action[Page]]().map { pageHandler =>
-
       val parsedToPageWithEffects: Parsed[Page] => Page = {
         case Right(page) =>
           page
@@ -135,15 +136,32 @@ object Router {
         .startWith(Seq(""))
         .map { _ => config.parseUrl(baseUrl, AbsUrl.fromWindow) }
 
-      val pageChanged: Observable[Page] = Observable.merge(
+      val pageChanged: Observable[Option[Page]] = Observable.merge(
         popStateObservable,
-        pageHandler.map(r => Left(r))
+        pageHandler.map(r => Some(Left(r)))
       )
-        .map(parsedToPageWithEffects)
+        .map(_.map(parsedToPageWithEffects))
         .replay(1)
         .refCount
 
-      val source = pageChanged.map(p => State(p, config.pageToNode(p)))
+      def pageToNode(page: Page): Option[(Option[Page], VNode)] =
+        config.pageToNode(page).map(node => Some(page) -> node)
+
+      val source = pageChanged.map { pageOpt =>
+
+        val (page, node) = pageOpt.flatMap(pageToNode)
+          .getOrElse(
+            config.notFound.fold(
+              action => {
+                val page = parsedToPageWithEffects(Left(action))
+                pageToNode(page).getOrElse(invalidConfiguration(page))
+              },
+              node => (None, node)
+            )
+          )
+
+        State(page, node)
+      }
 
       Pipe(pageHandler, source)
     }
