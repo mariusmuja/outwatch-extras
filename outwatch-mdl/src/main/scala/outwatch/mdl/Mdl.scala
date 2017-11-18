@@ -15,38 +15,31 @@ trait Mdl {
 
   private def componentHandler = js.Dynamic.global.componentHandler
 
-  private val upgradeInsertedElement = Sink.create[dom.Element] { e =>
-    IO {
-      if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
-      Continue
-    }
+  private def updateElement(e: dom.Element): Unit = {
+    e.removeAttribute("data-upgraded")
+    if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
   }
 
-  private val upgradePostPatchElement = Sink.create[(dom.Element, dom.Element)] { case (_, e) =>
-    IO {
-      e.removeAttribute("data-upgraded")
-      if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
-      Continue
-    }
+  private val insertHook = Sink.create[dom.Element] { e =>
+    IO(updateElement(e)).map(_ => Continue)
   }
 
-  val material: VDomModifier = Seq(
-    Attributes.insert --> upgradeInsertedElement,
-    Attributes.postpatch --> upgradePostPatchElement
-  )
+  private val postpatchHook = Sink.create[(dom.Element, dom.Element)] { case (_, e) =>
+    IO(updateElement(e)).map(_ => Continue)
+  }
 
-  
+  val material: VDomModifier = Seq(Attributes.insert --> insertHook, Attributes.postpatch --> postpatchHook)
+
   def material(id: String): VDomModifier = {
-    val hook = Sink.create[(dom.Element, dom.Element)] { _ =>
-      IO {
-        Option(dom.document.getElementById(id)).foreach { e =>
-          e.removeAttribute("data-upgraded")
-          if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
-        }
-        Continue
-      }
-    }
-    Attributes.postpatch --> hook
+
+    val update = IO {
+      Option(dom.document.getElementById(id)).foreach(updateElement)
+    }.map(_ => Continue)
+
+    val insertHook = Sink.create[dom.Element]( _ => update )
+    val postpatchHook = Sink.create[(dom.Element, dom.Element)]( _ => update )
+
+    Seq(Attributes.insert --> insertHook, Attributes.postpatch --> postpatchHook)
   }
 
 }
