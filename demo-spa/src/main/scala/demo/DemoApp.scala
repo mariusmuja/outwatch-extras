@@ -246,9 +246,15 @@ object TodoComponent extends StatefulComponent {
 
 object AppRouter {
 
-  sealed trait Page
-  object TodoPage extends Page
-  case class LogPage(last: Int) extends Page
+  sealed trait Page {
+    def title: String
+  }
+  object TodoPage extends Page {
+    val title = "Todo List"
+  }
+  case class LogPage(last: Int) extends Page {
+    val title = "Log page"
+  }
 
   val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
@@ -314,10 +320,8 @@ object DemoApp {
   import outwatch.dom._
 
   val updatePageTitle : Option[Page] => Unit = {
-    case Some(TodoPage) =>
-      dom.document.title = "TODO list"
-    case Some(LogPage(_)) =>
-      dom.document.title = "Log page"
+    case Some(p) =>
+      dom.document.title = p.title
     case None =>
       dom.document.title = "Not found"
   }
