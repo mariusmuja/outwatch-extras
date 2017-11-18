@@ -4,7 +4,7 @@ import cats.effect.IO
 import monix.execution.Ack.Continue
 import org.scalajs.dom
 import outwatch.Sink
-import outwatch.dom.{Attributes, InsertHook}
+import outwatch.dom.{Attributes, VDomModifier}
 
 import scala.scalajs.js
 
@@ -13,14 +13,33 @@ import scala.scalajs.js
   */
 trait Mdl {
 
-  private val upgradeElement = Sink.create[dom.Element] { e =>
-    IO {
-      val componentHandler = js.Dynamic.global.componentHandler
-      e.removeAttribute("data-upgraded")
-      if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
-      Continue
-    }
+  private def componentHandler = js.Dynamic.global.componentHandler
+
+  private def updateElement(e: dom.Element): Unit = {
+    e.removeAttribute("data-upgraded")
+    if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
   }
 
-  val material: IO[InsertHook] = Attributes.insert --> upgradeElement
+  private val insertHook = Sink.create[dom.Element] { e =>
+    IO(updateElement(e)).map(_ => Continue)
+  }
+
+  private val postpatchHook = Sink.create[(dom.Element, dom.Element)] { case (_, e) =>
+    IO(updateElement(e)).map(_ => Continue)
+  }
+
+  val material: VDomModifier = Seq(Attributes.insert --> insertHook, Attributes.postpatch --> postpatchHook)
+
+  def material(id: String): VDomModifier = {
+
+    val update = IO {
+      Option(dom.document.getElementById(id)).foreach(updateElement)
+    }.map(_ => Continue)
+
+    val insertHook = Sink.create[dom.Element]( _ => update )
+    val postpatchHook = Sink.create[(dom.Element, dom.Element)]( _ => update )
+
+    Seq(Attributes.insert --> insertHook, Attributes.postpatch --> postpatchHook)
+  }
+
 }
