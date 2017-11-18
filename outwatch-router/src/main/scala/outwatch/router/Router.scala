@@ -22,10 +22,6 @@ import scala.scalajs.js
 
 trait Router[Page] {
 
-  def set(page: Page) = Push(page)
-  def replace(page: Page) = Replace(page)
-  def url(url: AbsUrl) = Force(url)
-
   sealed trait Action
   case class Push(page: Page) extends Action
   case class Replace(page: Page) extends Action
@@ -144,15 +140,13 @@ trait Router[Page] {
 
       val popStateObservable = fromEvent(dom.window, "popstate")
         .startWith(Seq(()))
-        .map { _ => config.parseUrl(baseUrl, AbsUrl.fromWindow) }
+        .map(_ => config.parseUrl(baseUrl, AbsUrl.fromWindow))
 
       val pageChanged: Observable[Option[Page]] = Observable.merge(
         popStateObservable,
         pageHandler.map(r => Some(Left(r)))
       )
         .map(_.map(parsedToPageWithEffects))
-        .replay(1)
-        .refCount
 
       def pageToNode(page: Page): Option[(Option[Page], VNode)] =
         config.pageToNode(page).map(node => Some(page) -> node)
@@ -173,7 +167,7 @@ trait Router[Page] {
         State(page, node)
       }
 
-      Pipe(pageHandler, source)
+      Pipe(pageHandler, source.share)
     }
   }
 

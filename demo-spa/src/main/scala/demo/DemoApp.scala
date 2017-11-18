@@ -53,7 +53,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
         div(
           input(value <-- handler.map(_.log.lastOption.getOrElse(""))),
           button(
-            click(Router.replace(LogPage(1))) --> router, "Goto"
+            click(Router.Replace(LogPage("replaced previous page"))) --> router, "Goto"
           )
         ),
         div(
@@ -127,13 +127,16 @@ object TextField extends TextFieldStyle {
 }
 
 
-object TodoModule extends StatefulComponent with
+object TodoModule extends StatefulEffectsComponent with
                           TodoModuleStyle {
 
   sealed trait Action
   case class AddTodo(value: String) extends Action
   case class RemoveTodo(todo: Todo) extends Action
 
+  import AppRouter._
+
+  type Effect = Router.Action
 
   private def newID = Random.nextInt
 
@@ -142,7 +145,11 @@ object TodoModule extends StatefulComponent with
   case class State(todos: Seq[Todo] = Seq.empty) extends ComponentState {
     val evolve = {
       case add @ AddTodo(value) =>
+        if (value == "show log") {
+          this -> Router.Push(LogPage("Log as effect"))
+        } else
         copy(todos = todos :+ Todo(newID, value))
+
       case remove @ RemoveTodo(todo) =>
         copy(todos = todos.filter(_.id != todo.id))
     }
@@ -178,7 +185,7 @@ object TodoModule extends StatefulComponent with
         div(
           TextField(actions.redirectMap(AddTodo)),
           button(S.button, S.material,
-            click(Router.set(LogPage(10))) --> router, "Log only"
+            click(Router.Push(LogPage("from 'Log only'"))) --> router, "Log only"
           ),
           ul(children <-- todoViews)
         )
@@ -191,7 +198,11 @@ object TodoModule extends StatefulComponent with
     parent: TodoComponent.ActionSink,
     initActions: Action*
   ): VNode = {
-    Store.create(initActions, State()).flatMap(view(_, logger, parent))
+    val effects = AppRouter.router.map { router =>
+      router.transformSource[Action](_ => Observable.empty)
+    }
+    Store.create(initActions, State(), effects).flatMap(view(_, logger, parent))
+
   }
 }
 
@@ -225,6 +236,9 @@ object TodoComponent extends StatefulComponent {
               td("Last action: ", child <-- store.map(_.lastAction))
             ),
             tr(
+              span("Add item 'show log' to test router as effect.")
+            ),
+            tr(
               td(todoModule),
               td(todoModule)
             ),
@@ -253,7 +267,7 @@ object AppRouter {
   object TodoPage extends Page {
     val title = "Todo List"
   }
-  case class LogPage(last: Int) extends Page {
+  case class LogPage(message: String) extends Page {
     val title = "Log page"
   }
 
@@ -266,9 +280,9 @@ object AppRouter {
 
     builder
       .rules(
-        ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
+        ("log" / remainingPath).caseClass[LogPage] ~> { case LogPage(message) => Logger(Logger.Init("Message: " + message)) },
         "todo".const(TodoPage) ~> TodoComponent(),
-        "log".const(Unit) ~> Router.Replace(LogPage(11))
+        "log".const(Unit) ~> Router.Replace(LogPage("log only"))
       )
       .notFound(Router.Replace(TodoPage))
   }
