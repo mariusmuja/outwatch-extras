@@ -181,11 +181,11 @@ object TodoModule extends StatefulEffectsComponent with
 
       val todoViews = store.map(_.todos.map(todoItem(_, actions, S)))
 
-      router.flatMap { router =>
+      AppRouter.push.flatMap { router =>
         div(
           TextField(actions.redirectMap(AddTodo)),
           button(S.button, S.material,
-            click(Router.Push(LogPage("from 'Log only'"))) --> router, "Log only"
+            click(LogPage("from 'Log only'")) --> router, "Log only"
           ),
           ul(children <-- todoViews)
         )
@@ -291,7 +291,9 @@ object AppRouter {
 //  val router = Router.create(config, baseUrl).unsafeRunSync()
 
   val create = Router.createRef(config, baseUrl)
-  val router = Router.get
+  lazy val router = Router.get
+  lazy val push = router.map(_.mapSink[Page](Router.Push))
+  lazy val replace = router.map(_.mapSink[Page](Router.Replace))
 }
 
 sealed trait ConsoleEffect
