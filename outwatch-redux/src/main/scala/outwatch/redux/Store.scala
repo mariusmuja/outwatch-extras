@@ -2,8 +2,7 @@ package outwatch.redux
 
 import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
-import outwatch.dom.{Handlers, Observable}
-import outwatch.extras.Pipe
+import outwatch.dom.{Handler, Pipe, Observable}
 import outwatch.extras.>-->
 
 /**
@@ -16,7 +15,7 @@ object Store {
     initialState: State
   ): IO[Action >--> State] = {
 
-    Handlers.createHandler[Action](initActions: _*).map { handler =>
+    Handler.create[Action](initActions: _*).map { handler =>
       val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
       val source: Observable[State] = handler
@@ -34,7 +33,7 @@ object Store {
     actionSource: Observable[Action],
   ): IO[Action >--> State] = {
 
-    Handlers.createHandler[Action](initActions :_*).map { handler =>
+    Handler.create[Action](initActions :_*).map { handler =>
       val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
       val source: Observable[State] = Observable.merge(handler, actionSource)
@@ -52,17 +51,17 @@ object Store {
     effects: IO[Effect >--> Action],
   ): IO[Action >--> State] = {
 
-    Handlers.createHandler[Action](initActions :_*).flatMap { handler =>
+    Handler.create[Action](initActions :_*).flatMap { handler =>
       effects.map { effectHandler =>
 
         val reducer: (State, Action) => State = (state, action) => {
 //          println(s" --> In reducer: $action")
           val se = state.evolve(action)
-          se.effects.subscribe(effectHandler.sink.observer.onNext _)
+          se.effects.subscribe(effectHandler.observer.onNext _)
           se.state
         }
 
-        val source: Observable[State] = Observable.merge(handler, effectHandler.source)
+        val source: Observable[State] = Observable.merge(handler, effectHandler)
           .scan(initialState)(reducer)
           .startWith(Seq(initialState))
 

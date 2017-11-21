@@ -87,7 +87,7 @@ object TextField extends TextFieldStyle {
   def apply(actions: Sink[String], minLen : Int = 4)(implicit S: Style): VNode = {
     import outwatch.dom._
 
-    createStringHandler().flatMap { inputTodo =>
+    Handler.create[String].flatMap { inputTodo =>
 
       val disabledValues = inputTodo
         .map(_.length < minLen)

@@ -8,8 +8,8 @@ import monix.execution.{Ack, Cancelable}
 import monix.reactive.OverflowStrategy.Unbounded
 import org.scalajs.dom
 import outwatch.dom.helpers.STRef
-import outwatch.dom.{Handlers, Observable, VNode}
-import outwatch.extras.{>-->, Pipe}
+import outwatch.dom.{Handler, Pipe, Observable, VNode}
+import outwatch.extras.>-->
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
@@ -123,7 +123,7 @@ trait Router[Page] {
   private object RedirectException extends Exception("Redirecting...")
 
   def create(config: Config, baseUrl: BaseUrl): IO[Action >--> State] = {
-    Handlers.createHandler[Action]().map { pageHandler =>
+    Handler.create[Action]().map { pageHandler =>
       val parsedToPageWithEffects: Parsed => Page = {
         case Right(page) =>
           page
