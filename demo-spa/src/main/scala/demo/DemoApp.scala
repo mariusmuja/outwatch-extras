@@ -6,11 +6,10 @@ import demo.styles._
 import org.scalajs.dom
 import org.scalajs.dom.console
 import outwatch.Sink
-import outwatch.dom.VNode
+import outwatch.dom.{Observable, VNode}
 import outwatch.redux._
 import outwatch.router.{BaseUrl, Router => OutwatchRouter}
 import outwatch.styles.Styles
-import rxscalajs.Observable
 
 import scala.scalajs.js.Date
 import scala.util.Random
