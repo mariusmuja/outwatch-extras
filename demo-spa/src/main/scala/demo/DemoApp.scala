@@ -223,8 +223,7 @@ object TodoComponent extends Component {
             td("Last action: ", child <-- store.map(_.lastAction))
           ),
           tr(
-            td(todoModule),
-            td(todoModule)
+            Seq.fill(2)(td(todoModule))
           ),
           tr(
             td(Logger(Logger.InitEffect("Effect log")))
