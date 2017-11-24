@@ -1,5 +1,6 @@
 package outwatch.redux
 
+import outwatch.Sink
 import rxscalajs.Observable
 
 import scala.language.implicitConversions
@@ -13,37 +14,37 @@ trait EvolvableState[Action, State] {
   def evolve : Action => State
 }
 
-trait EvolvableEffectsState[Action, Effect, State] { self: State =>
+trait EvolvableStateWithEffects[Action, State, Effect] { self: State =>
 
-  protected implicit def noEffect(state: State): (State, Observable[Effect]) = (state, Observable.empty)
+  case class StateWithEffects(state: State, effects: Observable[Effect])
 
-  protected implicit def oneEffect(se : (State, Effect)): (State, Observable[Effect]) = (se._1, Observable.just(se._2))
+  protected implicit def noEffect(state: State): StateWithEffects = StateWithEffects(state, Observable.empty)
 
-  protected implicit def justEffect(e : Effect): (State, Observable[Effect]) = (self, Observable.just(e))
+  protected implicit def oneEffect(se : (State, Effect)): StateWithEffects = StateWithEffects(se._1, Observable.of(se._2))
 
-  def evolve : Action => (State, Observable[Effect])
+  protected implicit def fromTuple(se : (State, Observable[Effect])): StateWithEffects = StateWithEffects(se._1, se._2)
+
+  protected implicit def justEffect(e : Effect): StateWithEffects = StateWithEffects(self, Observable.of(e))
+
+  def evolve : Action => StateWithEffects
 }
 
 
-trait Component {
+trait StatefulComponent {
   type Action
   type ActionSink = Sink[Action]
 
   protected type ComponentState = EvolvableState[Action, State]
   protected type State <: ComponentState
-
-  type ComponentStore = Store[State, Action]
 }
 
-trait EffectsComponent {
+trait StatefulEffectsComponent {
   type Action
   type ActionSink = Sink[Action]
 
   type Effect
   type EffectSink = Sink[Effect]
 
-  protected type ComponentState = EvolvableEffectsState[Action, Effect, State]
+  protected type ComponentState = EvolvableStateWithEffects[Action, State, Effect]
   protected type State <: ComponentState
-
-  type ComponentStore = Store[State, Action]
 }

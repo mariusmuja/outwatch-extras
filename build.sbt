@@ -3,14 +3,28 @@ inThisBuild(Seq(
   version := "0.1.2-SNAPSHOT",
   scalaVersion := crossScalaVersions.value.head,
   crossScalaVersions := Seq("2.12.4", "2.11.11"),
-  scalacOptions in Compile ++= Seq(
-    "-deprecation",
-    "-feature"
-  ),
   javacOptions in Compile ++= Seq(
     "-source", "1.7",
     "-target", "1.7"
   ),
+  scalacOptions ++=
+    "-encoding" :: "UTF-8" ::
+    "-unchecked" ::
+    "-deprecation" ::
+    "-explaintypes" ::
+    "-feature" ::
+    "-language:_" ::
+    "-Xcheckinit" ::
+    "-Xfuture" ::
+    "-Xlint" ::
+    "-Ypartial-unification" ::
+    "-Yno-adapted-args" ::
+    "-Ywarn-infer-any" ::
+    "-Ywarn-value-discard" ::
+    "-Ywarn-nullary-override" ::
+    "-Ywarn-nullary-unit" ::
+    "-P:scalajs:sjsDefinedByDefault" ::
+    Nil,
   licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html")),
   publishArtifact in Test := false
 )
@@ -25,7 +39,7 @@ val noPublish = Seq(
 )
 
 lazy val root = project.in(file("."))
-  .aggregate(app, redux, styles, mdl, router)
+  .aggregate(app, redux, styles, mdl, router, util)
   .settings(noPublish: _*)
 
 
@@ -52,6 +66,14 @@ lazy val styles = project.in(file("outwatch-styles"))
   )
   .enablePlugins(ScalaJSPlugin)
 
+lazy val util = project.in(file("outwatch-util"))
+  .settings(
+    name := "outwatch-util",
+    libraryDependencies ++=
+      "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
+        Nil
+  )
+  .enablePlugins(ScalaJSPlugin)
 
 lazy val mdl = project.in(file("outwatch-mdl"))
   .settings(
@@ -70,6 +92,7 @@ lazy val router = project.in(file("outwatch-router"))
         "org.scala-lang" % "scala-reflect" % scalaVersion.value ::
         Nil
   )
+  .dependsOn(util)
   .enablePlugins(ScalaJSPlugin)
 
 
@@ -80,5 +103,6 @@ lazy val redux = project.in(file("outwatch-redux"))
       "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
         Nil
   )
+  .dependsOn(util)
   .enablePlugins(ScalaJSPlugin)
 

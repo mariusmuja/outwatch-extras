@@ -1,14 +1,12 @@
 package demo
 
 import cats.effect.IO
-import demo.Router.{LogPage, Page, TodoPage}
 import demo.styles._
 import org.scalajs.dom
-import org.scalajs.dom.console
-import outwatch.Sink
-import outwatch.dom.{Observable, VNode}
+import outwatch.dom.{Observable, Sink, VNode}
+import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
-import outwatch.router.{BaseUrl, Router => OutwatchRouter}
+import outwatch.router.BaseUrl
 import outwatch.styles.Styles
 
 import scala.scalajs.js.Date
@@ -17,7 +15,7 @@ import scalacss.DevDefaults._
 
 
 
-object Logger extends EffectsComponent with LogAreaStyle {
+object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
   sealed trait Action
   case class Init(message: String) extends Action
@@ -34,8 +32,7 @@ object Logger extends EffectsComponent with LogAreaStyle {
 
     val evolve = {
       case InitEffect(message) =>
-        dom.console.log("InitEffect")
-        ConsoleEffect.Log(message)
+        this -> ConsoleEffect.Log(message)
       case Init(message) =>
         copy(log :+ message)
       case LogAction(line) =>
@@ -44,22 +41,25 @@ object Logger extends EffectsComponent with LogAreaStyle {
     }
   }
 
-  def view(store: Store[State, Action])(implicit S: Style): VNode = {
+  def view(handler: State <--< Action)(implicit S: Style): VNode = {
+    import AppRouter._
     import outwatch.dom._
 
-    div(
+    router.flatMap { router =>
       div(
-        input(value <-- store.map(_.log.lastOption.getOrElse(""))),
-        button(
-          click(Router.LogPage(1)) --> Router.replace, "Goto"
-        )
-      ),
-      div(
-        textarea(S.textfield, S.material,
-          child <-- store.map(_.log.mkString("\n"))
+        div(
+          input(value <-- handler.map(_.log.lastOption.getOrElse(""))),
+          button(
+            onClick(Router.Replace(LogPage("replaced previous page"))) --> router, "Goto"
+          )
+        ),
+        div(
+          textArea(S.textfield, S.material,
+            child <-- handler.map(_.log.mkString("\n"))
+          )
         )
       )
-    )
+    }
   }
 
   private val consoleToAction: ConsoleEffectResult => Action = {
@@ -67,18 +67,16 @@ object Logger extends EffectsComponent with LogAreaStyle {
   }
 
   def apply(initActions: Action*): VNode = {
-    Store.create(initActions, State(), Console.Merge.map(consoleToAction))
+    Store.create(initActions, State(), Console.merge.map(_.mapSource(consoleToAction)))
       .flatMap(view)
   }
 
-//  def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
-//
-//    val consoleActions = Console.Merge.source.map(consoleToAction)
-//
-//    Store.create(initActions, State(), consoleActions).map { store =>
-//      (view(store), store.sink)
-//    }
-//  }
+  def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
+
+    Store.create(initActions, State(), Console.merge.map(_.mapSource(consoleToAction))).map { store =>
+      (view(store), store)
+    }
+  }
 }
 
 object TextField extends TextFieldStyle {
@@ -86,7 +84,7 @@ object TextField extends TextFieldStyle {
   def apply(actions: Sink[String], minLen : Int = 4)(implicit S: Style): VNode = {
     import outwatch.dom._
 
-    createStringHandler().flatMap { inputTodo =>
+    Handler.create[String].flatMap { inputTodo =>
 
       val disabledValues = inputTodo
         .map(_.length < minLen)
@@ -100,21 +98,21 @@ object TextField extends TextFieldStyle {
       val filteredActions = actions.redirect(filterSinkDisabled)
       val inputTodoFiltered = inputTodo.redirect(filterSinkDisabled)
 
-      val enterdown = keydown.filter(k => k.keyCode == 13)
+      val enterdown = onKeyDown.filter(k => k.keyCode == 13)
 
       div(
         div(S.textfield, S.material,
           label(S.textlabel, "Enter todo"),
           input(S.textinput,
-            inputString --> inputTodo,
+            onInputString --> inputTodo,
             value <-- inputTodo,
             enterdown(inputTodo) --> filteredActions,
             enterdown("") --> inputTodoFiltered
           )
         ),
         button(S.button, S.material,
-          click(inputTodo) --> filteredActions,
-          click("") --> inputTodoFiltered,
+          onClick(inputTodo) --> filteredActions,
+          onClick("") --> inputTodoFiltered,
           disabled <-- disabledValues,
           "Submit"
         )
@@ -125,13 +123,16 @@ object TextField extends TextFieldStyle {
 }
 
 
-object TodoModule extends Component with
+object TodoModule extends StatefulEffectsComponent with
                           TodoModuleStyle {
 
   sealed trait Action
   case class AddTodo(value: String) extends Action
   case class RemoveTodo(todo: Todo) extends Action
 
+  import AppRouter._
+
+  type Effect = Router.Action
 
   private def newID = Random.nextInt
 
@@ -140,6 +141,9 @@ object TodoModule extends Component with
   case class State(todos: Seq[Todo] = Seq.empty) extends ComponentState {
     val evolve = {
       case add @ AddTodo(value) =>
+        if (value == "show log") {
+          this -> Router.Push(LogPage("Log as effect"))
+        } else
         copy(todos = todos :+ Todo(newID, value))
       case remove @ RemoveTodo(todo) =>
         copy(todos = todos.filter(_.id != todo.id))
@@ -151,50 +155,53 @@ object TodoModule extends Component with
     li(
       key := s"${todo.id}",
       span(todo.value),
-      button(S.button, S.material, click(RemoveTodo(todo)) --> actions, "Delete")
+      button(S.button, S.material, onClick(RemoveTodo(todo)) --> actions, "Delete")
     )
   }
 
-  def view(store: Store[State, Action],  parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
+  def view(store: Action >--> State,  logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
+    import AppRouter._
     import outwatch.dom._
 
-//    val loggedActions = logger.redirectMap[Action]{
-//      case AddTodo(value) => Logger.LogAction(s"Add $value")
-//      case RemoveTodo(todo) => Logger.LogAction(s"Remove ${todo.value}")
-//    }
+    val loggerSink = logger.redirectMap[Action]{
+      case AddTodo(value) => Logger.LogAction(s"Add $value")
+      case RemoveTodo(todo) => Logger.LogAction(s"Remove ${todo.value}")
+    }
     val parentSink = parent.redirectMap[Action] {
       case AddTodo(value) => TodoComponent.AddTodo(value)
       case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
     }
-    val consoleSink = Console.sink.redirectMap[Action] {
-      case AddTodo(value) => ConsoleEffect.Log(value)
-      case RemoveTodo(todo) => ConsoleEffect.Log(todo.value)
+
+    SinkUtil.redirectInto(store, loggerSink, parentSink).flatMap { actions =>
+
+      val todoViews = store.map(_.todos.map(todoItem(_, actions, S)))
+
+      AppRouter.push.flatMap { router =>
+        div(
+          TextField(actions.redirectMap(AddTodo)),
+          button(S.button, S.material,
+            onClick(LogPage("from 'Log only'")) --> router, "Log only"
+          ),
+          ul(children <-- todoViews)
+        )
+      }
     }
 
-    SinkUtil.redirectInto(store.sink, parentSink, consoleSink).flatMap { actions =>
-
-      val todoViews = store.source.map(_.todos.map(todoItem(_, actions, S)))
-
-      div(
-        TextField(actions.redirectMap(AddTodo)),
-        button(S.button, S.material,
-          click(Router.LogPage(10)) --> Router.set, "Log only"
-        ),
-        ul(children <-- todoViews)
-      )
-    }
   }
 
-  def apply(//logger: Logger.ActionSink,
+  def apply(logger: Logger.ActionSink,
     parent: TodoComponent.ActionSink,
     initActions: Action*
   ): VNode = {
-    Store.create(initActions, State())
-      .flatMap(view(_, parent))
+    val effects = AppRouter.router.map { router =>
+      router.transformSource[Action](_ => Observable.empty)
+    }
+    Store.create(initActions, State(), effects).flatMap(view(_, logger, parent))
+
   }
 }
 
-object TodoComponent extends Component {
+object TodoComponent extends StatefulComponent {
 
   sealed trait Action
   case class AddTodo(value: String) extends Action
@@ -210,27 +217,32 @@ object TodoComponent extends Component {
     }
   }
 
-  def view(store: Store[State, Action]): VNode = {
+  def view(store: Action >--> State): VNode = {
     import outwatch.dom._
 
-//    Logger.withSink().flatMap { case (logger, loggerSink) =>
+    Logger.withSink(Logger.InitEffect("Effect log"))
+      .flatMap { case (logger, loggerSink) =>
 
-      val todoModule = TodoModule(store.sink)
+        val todoModule = TodoModule(loggerSink, store)
 
-      table(
-        tbody(
-          tr(
-            td("Last action: ", child <-- store.map(_.lastAction))
-          ),
-          tr(
-            Seq.fill(2)(td(todoModule))
-          ),
-          tr(
-            td(Logger(Logger.InitEffect("Effect log")))
+        table(
+          tbody(
+            tr(
+              td("Last action: ", child <-- store.map(_.lastAction))
+            ),
+            tr(
+              span("Add item 'show log' to test router as effect.")
+            ),
+            tr(
+              td(todoModule),
+              td(todoModule)
+            ),
+            tr(
+              td(logger)
+            )
           )
         )
-      )
-//    }
+      }
   }
 
   def apply(initActions: Action*): VNode = {
@@ -242,25 +254,41 @@ object TodoComponent extends Component {
 
 
 
-object Router extends OutwatchRouter {
+object AppRouter {
 
-  sealed trait Page
-  object TodoPage extends Page
-  case class LogPage(last: Int) extends Page
+  sealed trait Page {
+    def title: String
+  }
+  object TodoPage extends Page {
+    val title = "Todo List"
+  }
+  case class LogPage(message: String) extends Page {
+    val title = "Log page"
+  }
 
   val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
-  val config = RouterConfig { builder =>
+  object Router extends outwatch.router.Router[Page]
+
+  val config = Router.Config { builder =>
     import builder._
 
     builder
       .rules(
-        ("log" / int).caseClass[LogPage] ~> { case LogPage(p) => Logger(Logger.Init("Init logger: " + p)) },
+        ("log" / remainingPath).caseClass[LogPage] ~> { case LogPage(message) => Logger(Logger.Init("Message: " + message)) },
         "todo".const(TodoPage) ~> TodoComponent(),
-        "log".const(Unit) ~> Redirect(LogPage(11), replace = true)
+        "log".const(Unit) ~> Router.Replace(LogPage("log only"))
       )
-      .notFound(Redirect(TodoPage, replace = true))
+      .notFound(Router.Replace(TodoPage))
   }
+
+
+//  val router = Router.create(config, baseUrl).unsafeRunSync()
+
+  val create = Router.createRef(config, baseUrl)
+  lazy val router = Router.get
+  lazy val push = router.map(_.mapSink[Page](Router.Push))
+  lazy val replace = router.map(_.mapSink[Page](Router.Replace))
 }
 
 sealed trait ConsoleEffect
@@ -298,21 +326,32 @@ object BaseLayout {
 }
 
 
+
+
+
 object DemoApp {
 
-  import outwatch.dom.OutWatch
+  import AppRouter._
+  import outwatch.dom._
 
-  val updatePageTitle : Page => Unit = {
-    case TodoPage => dom.document.title = "TODO list"
-    case LogPage(_) => dom.document.title = "Log page"
+  val updatePageTitle : Option[Page] => Unit = {
+    case Some(p) =>
+      dom.document.title = p.title
+    case None =>
+      dom.document.title = "Not found"
   }
+
 
   def main(args: Array[String]): Unit = {
 
-    Router.pageChanged.subscribe(updatePageTitle)
+    AppRouter.create.flatMap { router =>
+      router.map(_.page).subscribe { p =>
+        updatePageTitle(p)
+      }
 
-    Styles.subscribe(_.addToDocument())
+      Styles.subscribe(_.addToDocument())
 
-    OutWatch.render("#app", Router(BaseLayout.apply)).unsafeRunSync()
+      OutWatch.render("#app", BaseLayout.apply(router.map(_.node)))
+    }.unsafeRunSync()
   }
 }

@@ -1,39 +1,33 @@
 package outwatch.redux
 
-import outwatch.dom.Handlers
+import cats.effect.IO
+import outwatch.extras.>-->
+import outwatch.{Handler, Pipe}
 import rxscalajs.Observable
 
-import scala.concurrent.{ExecutionContext, Future}
-import scala.language.implicitConversions
 
 trait Effects[Effect, EffectResult] {
 
-  private val handler = Handlers.createHandler[Effect]().unsafeRunSync()
-
-  val sink: Sink[Effect] = handler
-
-  // convenience implicit conversions
-  protected implicit def fromFutureResult(
-    result: Future[EffectResult]
-  )(implicit ex: ExecutionContext): Observable[EffectResult] = Observable.from(result)
-
-  //    protected implicit def fromResult(result: EffectResult): Observable[EffectResult] = Observable(result)
-
   def effects: Effect => Observable[EffectResult]
 
-  object Switch extends Handler[Effect, EffectResult] {
-    def sink: Sink[Effect] = handler
-    lazy val source: Source[EffectResult] = handler.switchMap(effects).share
+  val switch: IO[Effect >--> EffectResult] = Handler.create[Effect]().map { handler =>
+    Pipe(handler, handler.switchMap(effects).share)
   }
 
-  object Merge extends Handler[Effect, EffectResult] {
-    def sink: Sink[Effect] = handler
-    lazy val source: Source[EffectResult] = handler.mergeMap(effects).share
+  val merge: IO[Effect >--> EffectResult] = Handler.create[Effect]().map { handler =>
+    Pipe(handler, handler.mergeMap(effects).share)
   }
 
-  object Concat extends Handler[Effect, EffectResult] {
-    def sink: Sink[Effect] = handler
-    lazy val source: Source[EffectResult] = handler.concatMap(effects).share
+  val concat: IO[Effect >--> EffectResult] = Handler.create[Effect]().map { handler =>
+    Pipe(handler, handler.concatMap(effects).share)
   }
 
+  def switchCollect[E, A](f: PartialFunction[E, Effect])(g: PartialFunction[EffectResult, A]): IO[E >--> A] =
+    switch.map(_.collectPipe(f)(g))
+
+  def mergeCollect[E, A](f: PartialFunction[E, Effect])(g: PartialFunction[EffectResult, A]): IO[E >--> A] =
+    merge.map(_.collectPipe(f)(g))
+
+  def concatCollect[E, A](f: PartialFunction[E, Effect])(g: PartialFunction[EffectResult, A]): IO[E >--> A] =
+    concat.map(_.collectPipe(f)(g))
 }
