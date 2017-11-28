@@ -4,12 +4,11 @@ import cats.effect.IO
 import demo.styles._
 import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
-import monix.reactive.Observable
 import org.scalajs.dom
 import outwatch.dom.{Observable, Sink, VNode}
 import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
-import outwatch.router.{AbsUrl, BaseUrl}
+import outwatch.router.{AbsUrl, BaseUrl, Router}
 import outwatch.styles.Styles
 
 import scala.concurrent.duration._
@@ -54,11 +53,11 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
         div(
           input(value <-- handler.map(_.log.lastOption.getOrElse(""))),
           button(
-            click(Router.Replace(LogPage("replaced previous page"))) --> router, "Goto"
+            onClick(Router.Replace(Page.Log("replaced previous page"))) --> router, "Goto"
           )
         ),
         div(
-          textarea(S.textfield, S.material,
+          textArea(S.textfield, S.material,
             child <-- handler.map(_.log.mkString("\n"))
           )
         )
@@ -102,13 +101,13 @@ object TextField extends TextFieldStyle {
       val filteredActions = actions.redirect(filterSinkDisabled)
       val inputTodoFiltered = inputTodo.redirect(filterSinkDisabled)
 
-      val enterdown = keydown.filter(k => k.keyCode == 13)
+      val enterdown = onKeyDown.filter(k => k.keyCode == 13)
 
       div(
         div(S.textfield, S.material,
           label(S.textlabel, "Enter todo"),
           input(S.textinput,
-            inputString --> inputTodo,
+            onInputString --> inputTodo,
             value <-- inputTodo,
             prop("value") <-- inputTodo,
             enterdown(inputTodo) --> filteredActions,
@@ -116,8 +115,8 @@ object TextField extends TextFieldStyle {
           )
         ),
         button(S.button, S.material,
-          click(inputTodo) --> filteredActions,
-          click("") --> inputTodoFiltered,
+          onClick(inputTodo) --> filteredActions,
+          onClick("") --> inputTodoFiltered,
           disabled <-- disabledValues,
           "Submit"
         )
@@ -137,17 +136,20 @@ object TodoModule extends StatefulEffectsComponent with
 
   import AppRouter._
 
-  type Effect = Router.Action
+  sealed trait Effect
+  object Effect{
+    case class GoTo(page: Page) extends Effect
+  }
 
   private def newID = Random.nextInt
 
   case class Todo(id: Int, value: String)
 
-  case class State(todos: Seq[Todo] = Seq.empty) extends ComponentState {
+  case class State(todos: Seq[Todo] = Seq.empty) extends ComponentState { self =>
     val evolve = {
       case add @ AddTodo(value) =>
         if (value == "show log") {
-          this -> Router.Push(LogPage("Log as effect"))
+          self -> Effect.GoTo(Page.Log("Log as effect"))
         } else
         copy(todos = todos :+ Todo(newID, value))
 
@@ -161,7 +163,7 @@ object TodoModule extends StatefulEffectsComponent with
     li(
       key := s"${todo.id}",
       span(todo.value),
-      button(S.button, S.material, click(RemoveTodo(todo)) --> actions, "Delete")
+      button(S.button, S.material, onClick(RemoveTodo(todo)) --> actions, "Delete")
     )
   }
 
@@ -186,7 +188,7 @@ object TodoModule extends StatefulEffectsComponent with
         div(
           TextField(actions.redirectMap(AddTodo)),
           button(S.button, S.material,
-            click(LogPage("from 'Log only'")) --> router, "Log only"
+            onClick(Page.Log("from 'Log only'")) --> router, "Log only"
           ),
           ul(children <-- todoViews)
         )
@@ -199,11 +201,10 @@ object TodoModule extends StatefulEffectsComponent with
     parent: TodoComponent.ActionSink,
     initActions: Action*
   ): VNode = {
-    val effects = AppRouter.router.map { router =>
-      router.transformSource[Action](_ => Observable.empty)
+    val routerEffects = AppRouter.asEffect[Effect, Action] {
+      case Effect.GoTo(page) => AppRouter.Router.Push(page)
     }
-    Store.create(initActions, State(), effects).flatMap(view(_, logger, parent))
-
+    Store.create(initActions, State(), routerEffects).flatMap(view(_, logger, parent))
   }
 }
 
@@ -258,34 +259,28 @@ object TodoComponent extends StatefulComponent {
 
 }
 
-
-
 object AppRouter {
 
-  sealed trait Page {
-    def title: String
-  }
-  object TodoPage extends Page {
-    val title = "Todo List"
-  }
-  case class LogPage(message: String) extends Page {
-    val title = "Log page"
+  sealed abstract class Page(val title: String)
+  object Page {
+    object Todo extends Page("Todo List")
+    case class Log(message: String) extends Page("Log page")
   }
 
   val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
-  object Router extends outwatch.router.Router[Page]
+  object Router extends Router[Page]
 
   val config = Router.Config { builder =>
     import builder._
 
     builder
       .rules(
-        ("log" / remainingPath).caseClass[LogPage] ~> { case LogPage(message) => Logger(Logger.Init("Message: " + message)) },
-        "todo".const(TodoPage) ~> TodoComponent(),
-        "log".const(Unit) ~> Router.Replace(LogPage("log only"))
+        ("log" / remainingPath).caseClass[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
+        "todo".const(Page.Todo) ~> TodoComponent(),
+        "log".const(Unit) ~> Router.Replace(Page.Log("log only"))
       )
-      .notFound(Router.Replace(TodoPage))
+      .notFound(Router.Replace(Page.Todo))
   }
 
 
@@ -340,7 +335,7 @@ object BaseLayout {
 object DemoApp {
 
   import AppRouter._
-  import outwatch.dom._
+  import outwatch.dom.OutWatch
 
   val updatePageTitle : Option[Page] => Unit = {
     case Some(p) =>

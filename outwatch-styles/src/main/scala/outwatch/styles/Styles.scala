@@ -23,7 +23,6 @@ trait Styles[S] {
   trait Publish { self: S =>
     publish(self)
   }
-
 }
 
 object Styles extends Styles[StyleSheet.Inline]

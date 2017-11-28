@@ -66,7 +66,7 @@ trait Router[Page] {
 
   private def invalidConfiguration(page: Page): (Option[Page], VNode) = {
     import outwatch.dom._
-    Some(page) -> div(stl("color") := "red", s"Invalid configuration, missing rule for ${page.getClass.getName}")
+    Some(page) -> div(Styles.color := "red", s"Invalid configuration, missing rule for ${page.getClass.getName}")
   }
 
   object Config {
@@ -166,6 +166,7 @@ trait Router[Page] {
 
         State(page, node)
       }
+      .onErrorFallbackTo(Observable.empty) // in case of a Force redirect
 
       Pipe(pageHandler, source.share)
     }
