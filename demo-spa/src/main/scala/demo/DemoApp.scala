@@ -4,11 +4,12 @@ import cats.effect.IO
 import demo.styles._
 import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
+import monix.reactive.Observable
 import org.scalajs.dom
 import outwatch.dom.{Observable, Sink, VNode}
 import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
-import outwatch.router.BaseUrl
+import outwatch.router.{AbsUrl, BaseUrl}
 import outwatch.styles.Styles
 
 import scala.concurrent.duration._
@@ -294,6 +295,11 @@ object AppRouter {
   lazy val router = Router.get
   lazy val push = router.map(_.mapSink[Page](Router.Push))
   lazy val replace = router.map(_.mapSink[Page](Router.Replace))
+  lazy val force = router.map(_.mapSink[AbsUrl](Router.Force))
+
+  def asEffect[E, A](f: PartialFunction[E, Router.Action]) = router.map { router =>
+    router.transformPipe[E, A](_.collect(f))(_ => Observable.empty)
+  }
 }
 
 sealed trait ConsoleEffect
