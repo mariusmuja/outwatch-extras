@@ -8,14 +8,13 @@ import org.scalajs.dom
 import outwatch.dom.{Observable, Sink, VNode}
 import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
-import outwatch.router.{AbsUrl, BaseUrl, Router}
+import outwatch.router.{BaseUrl, RouterOps}
 import outwatch.styles.Styles
 
 import scala.concurrent.duration._
 import scala.scalajs.js.Date
 import scala.util.Random
 import scalacss.DevDefaults._
-
 
 
 object Logger extends StatefulEffectsComponent with LogAreaStyle {
@@ -259,17 +258,28 @@ object TodoComponent extends StatefulComponent {
 
 }
 
-object AppRouter {
+object AppPages {
 
   sealed abstract class Page(val title: String)
+
   object Page {
+
     object Todo extends Page("Todo List")
+
     case class Log(message: String) extends Page("Log page")
+
   }
 
-  val baseUrl: BaseUrl = BaseUrl.until_# + "#"
+}
 
-  object Router extends Router[Page]
+
+
+object AppRouter extends RouterOps {
+
+  type Page = AppPages.Page
+  val Page = AppPages.Page
+
+  val baseUrl: BaseUrl = BaseUrl.until_# + "#"
 
   val config = Router.Config { builder =>
     import builder._
@@ -283,18 +293,6 @@ object AppRouter {
       .notFound(Router.Replace(Page.Todo))
   }
 
-
-//  val router = Router.create(config, baseUrl).unsafeRunSync()
-
-  val create = Router.createRef(config, baseUrl)
-  lazy val router = Router.get
-  lazy val push = router.map(_.mapSink[Page](Router.Push))
-  lazy val replace = router.map(_.mapSink[Page](Router.Replace))
-  lazy val force = router.map(_.mapSink[AbsUrl](Router.Force))
-
-  def asEffect[E, A](f: PartialFunction[E, Router.Action]) = router.map { router =>
-    router.transformPipe[E, A](_.collect(f))(_ => Observable.empty)
-  }
 }
 
 sealed trait ConsoleEffect
