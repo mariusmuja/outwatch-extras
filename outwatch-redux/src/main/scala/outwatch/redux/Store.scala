@@ -2,7 +2,7 @@ package outwatch.redux
 
 import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
-import outwatch.dom.{Handler, Observable, Pipe}
+import outwatch.dom.{Handler, Observable}
 import outwatch.extras.>-->
 
 /**
@@ -16,13 +16,16 @@ object Store {
   ): IO[Action >--> State] = {
 
     Handler.create[Action](initActions: _*).map { handler =>
-      val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
-      val source: Observable[State] = handler
-        .scan(initialState)(reducer)
-        .startWith(Seq(initialState))
+      handler.transformSource { handler =>
+        val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
-      Pipe(handler, source.replay(1).refCount)
+        handler
+          .scan(initialState)(reducer)
+          .startWith(Seq(initialState))
+          .replay(1).refCount
+
+      }
     }
   }
 
@@ -34,13 +37,15 @@ object Store {
   ): IO[Action >--> State] = {
 
     Handler.create[Action](initActions :_*).map { handler =>
-      val reducer: (State, Action) => State = (state, action) => state.evolve(action)
+      handler.transformSource { handler =>
 
-      val source: Observable[State] = Observable.merge(handler, actionSource)
-        .scan(initialState)(reducer)
-        .startWith(Seq(initialState))
+        val reducer: (State, Action) => State = (state, action) => state.evolve(action)
 
-      Pipe(handler, source.replay(1).refCount)
+        Observable.merge(handler, actionSource)
+          .scan(initialState)(reducer)
+          .startWith(Seq(initialState))
+          .replay(1).refCount
+      }
     }
   }
 
@@ -54,18 +59,20 @@ object Store {
     Handler.create[Action](initActions :_*).flatMap { handler =>
       effects.map { effectHandler =>
 
-        val reducer: (State, Action) => State = (state, action) => {
-//          println(s" --> In reducer: $action")
-          val se = state.evolve(action)
-          se.effects.subscribe(effectHandler.observer.onNext _)
-          se.state
+        handler.transformSource { handler =>
+
+          val reducer: (State, Action) => State = (state, action) => {
+            //          println(s" --> In reducer: $action")
+            val se = state.evolve(action)
+            se.effects.subscribe(effectHandler.observer.onNext _)
+            se.state
+          }
+
+          Observable.merge(handler, effectHandler)
+            .scan(initialState)(reducer)
+            .startWith(Seq(initialState))
+            .replay(1).refCount
         }
-
-        val source: Observable[State] = Observable.merge(handler, effectHandler)
-          .scan(initialState)(reducer)
-          .startWith(Seq(initialState))
-
-        Pipe(handler, source.replay(1).refCount)
       }
     }
   }
@@ -85,20 +92,23 @@ object Store {
 
       (effects1 :: effects2 :: effects.toList).sequence.map { effectHandlers =>
 
-        val reducer: (State, Action) => State = (state, action) => {
-          //          println(s" --> In reducer: $action")
-          val se = state.evolve(action)
-          effectHandlers.foreach(effectHandler =>
-            se.effects.subscribe(effectHandler.observer.onNext _)
-          )
-          se.state
+
+        handler.transformSource { handler =>
+
+          val reducer: (State, Action) => State = (state, action) => {
+            //          println(s" --> In reducer: $action")
+            val se = state.evolve(action)
+            effectHandlers.foreach(effectHandler =>
+              se.effects.subscribe(effectHandler.observer.onNext _)
+            )
+            se.state
+          }
+
+          Observable.merge(handler :: effectHandlers: _*)
+            .scan(initialState)(reducer)
+            .startWith(Seq(initialState))
+            .replay(1).refCount
         }
-
-        val source: Observable[State] = Observable.merge(handler :: effectHandlers : _*)
-          .scan(initialState)(reducer)
-          .startWith(Seq(initialState))
-
-        Pipe(handler, source.replay(1).refCount)
       }
     }
   }

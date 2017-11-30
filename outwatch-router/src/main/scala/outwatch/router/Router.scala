@@ -1,20 +1,15 @@
 package outwatch.router
 
 import cats.effect.IO
-import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
-import monix.execution.cancelables.SingleAssignmentCancelable
-import monix.execution.{Ack, Cancelable}
-import monix.reactive.OverflowStrategy.Unbounded
 import org.scalajs.dom
 import outwatch.dom.helpers.STRef
-import outwatch.dom.{Handler, Pipe, Observable, VNode}
+import outwatch.dom.{Handler, Observable, Pipe, VNode, WindowEvents}
 import outwatch.extras.>-->
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
-import scala.scalajs.js
 
 /**
   * Created by marius on 26/06/17.
@@ -66,7 +61,7 @@ trait Router[Page] {
 
   private def invalidConfiguration(page: Page): (Option[Page], VNode) = {
     import outwatch.dom._
-    Some(page) -> div(Styles.color := "red", s"Invalid configuration, missing rule for ${page.getClass.getName}")
+    Some(page) -> div(Styles.color.red, s"Invalid configuration, missing rule for ${page.getClass.getName}")
   }
 
   object Config {
@@ -108,18 +103,6 @@ trait Router[Page] {
       builder(Builder(Seq.empty))
   }
 
-
-  private def fromEvent(target: dom.EventTarget, event: String): Observable[dom.Event] =
-    Observable.create(Unbounded) { subscriber =>
-      val c = SingleAssignmentCancelable()
-      val eventHandler: js.Function1[dom.Event, Ack] = { (e: dom.Event) =>
-        subscriber.onNext(e)
-        Continue
-      }
-      target.addEventListener(event, eventHandler)
-      c := Cancelable(() => target.removeEventListener(event, eventHandler))
-    }
-
   private object RedirectException extends Exception("Redirecting...")
 
   def create(config: Config, baseUrl: BaseUrl): IO[Action >--> State] = {
@@ -138,7 +121,7 @@ trait Router[Page] {
           throw RedirectException
       }
 
-      val popStateObservable = fromEvent(dom.window, "popstate")
+      val popStateObservable = WindowEvents.onPopState
         .startWith(Seq(()))
         .map(_ => config.parseUrl(baseUrl, AbsUrl.fromWindow))
 

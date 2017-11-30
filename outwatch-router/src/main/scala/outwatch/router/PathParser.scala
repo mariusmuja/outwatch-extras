@@ -192,8 +192,6 @@ trait PathParser {
     /**
       * Specify a default value when parsing.
       *
-      * Note: Unlike [[withDefault()]] path generation will still explicitly include the default value.
-      *
       * Eg. If the path is like "/file[.format]" and the default is JSON, "/file" will be read as "/file.json", but
       * when generating a path with JSON this will generate "/file.json" instead of "/file".
       */
@@ -202,8 +200,6 @@ trait PathParser {
 
     /**
       * Specify a default value.
-      *
-      * Note: Unlike [[parseDefault()]] this will affect path generation too.
       *
       * Eg. If the path is like "/file[.format]" and the default is JSON, "/file" will be read as "/file.json", and
       * when generating a path with JSON this will generate "/file" instead of "/file.json".

@@ -35,7 +35,7 @@ trait RouterOps extends RouterOpsBase {
 /**
   * Non-referential transparent RouterOps
   */
-trait RouterOpsSideEffects extends RouterOpsBase {
+trait RouterOpsUnsafe extends RouterOpsBase {
 
   lazy val router: Router.Action >--> Router.State = Router.create(config, baseUrl).unsafeRunSync()
 

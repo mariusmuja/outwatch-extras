@@ -26,6 +26,8 @@ trait EvolvableStateWithEffects[Action, State, Effect] { self: State =>
 
   protected implicit def justEffect(e : Effect): StateWithEffects = StateWithEffects(self, Observable(e))
 
+  protected implicit def justEffects(e : Observable[Effect]): StateWithEffects = StateWithEffects(self, e)
+
   def evolve : Action => StateWithEffects
 }
 
