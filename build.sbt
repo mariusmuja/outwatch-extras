@@ -1,3 +1,4 @@
+
 inThisBuild(Seq(
   organization := "com.github.mariusmuja",
   version := "0.1.2-monix-SNAPSHOT",
@@ -7,6 +8,11 @@ inThisBuild(Seq(
     "-source", "1.7",
     "-target", "1.7"
   ),
+  scalacOptions += {
+    val local = baseDirectory.value.toURI
+    val remote = s"https://raw.githubusercontent.com/mariusmuja/outwatch-extras/${git.gitHeadCommit.value.get}/"
+    s"-P:scalajs:mapSourceURI:$local->$remote"
+  },
   scalacOptions ++=
     "-encoding" :: "UTF-8" ::
     "-unchecked" ::
