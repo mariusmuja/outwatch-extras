@@ -5,7 +5,9 @@ import monix.execution.Scheduler.Implicits.global
 import outwatch.dom.{Handler, Observable, Pipe}
 import outwatch.extras.>-->
 
-trait Effects[Effect, EffectResult] {
+trait EffectsOps {
+  type Effect
+  type EffectResult
 
   def effects: Effect => Observable[EffectResult]
 
@@ -40,5 +42,10 @@ trait Effects[Effect, EffectResult] {
 
   def concat[E, A](g: PartialFunction[EffectResult, A]): IO[Effect >--> A] =
     concat.map(_.collectSource(g))
+}
 
+
+trait Effects[E, ER] extends EffectsOps {
+  type Effect = E
+  type EffectResult = ER
 }
