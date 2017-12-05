@@ -2,6 +2,7 @@ package outwatch.router
 
 import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
+import monix.execution.misc.NonFatal
 import org.scalajs.dom
 import outwatch.dom.helpers.STRef
 import outwatch.dom.{Handler, Observable, Pipe, VNode, WindowEvents}
@@ -131,8 +132,15 @@ trait Router[Page] {
       )
         .map(_.map(parsedToPageWithEffects))
 
-      def pageToNode(page: Page): Option[(Option[Page], VNode)] =
-        config.pageToNode(page).map(node => Some(page) -> node)
+      def pageToNode(page: Page): Option[(Option[Page], VNode)] = {
+        try {
+          config.pageToNode(page).map(node => Some(page) -> node)
+        } catch {
+          case NonFatal(e) =>
+            dom.console.error(e.getMessage)
+            Some((None, outwatch.dom.div(outwatch.dom.Styles.color.red, e.getMessage)))
+        }
+      }
 
       val source = pageChanged.map { pageOpt =>
 
