@@ -16,7 +16,7 @@ trait ComponentStyle {
   type Style <: StyleSheet
 
   implicit def styleToAttr(styleA: StyleA): IO[Attribute] = {
-    Attributes.className.spaceAccum := styleA.htmlClass
+    Attributes.classAccum := styleA.htmlClass
   }
 
 }
