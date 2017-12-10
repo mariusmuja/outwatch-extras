@@ -88,12 +88,11 @@ object Store {
     import cats.instances.list._
     import cats.syntax.traverse._
 
-    Handler.create[Action](initActions: _*).flatMap { handler =>
+    Handler.create[Action](initActions: _*).flatMap { actions =>
+      // type annotation to keep IDEA typechecker happy
+      ((effects1 :: effects2 :: effects.toList).sequence: IO[List[Effect >--> Action]]).map { effectHandlers =>
 
-      (effects1 :: effects2 :: effects.toList).sequence.map { effectHandlers =>
-
-
-        handler.transformSource { handler =>
+        actions.transformSource { actionSource =>
 
           val reducer: (State, Action) => State = (state, action) => {
             //          println(s" --> In reducer: $action")
@@ -104,7 +103,7 @@ object Store {
             se.state
           }
 
-          Observable.merge(handler :: effectHandlers: _*)
+          Observable.merge(actionSource :: effectHandlers: _*)
             .scan(initialState)(reducer)
             .startWith(Seq(initialState))
             .replay(1).refCount
