@@ -73,7 +73,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
       .flatMap(view)
   }
 
-  def withSink(initActions: Action*): IO[(VNode, ActionSink)] = {
+  def withSink(initActions: Action*): IO[(VNode, Sink[Action])] = {
 
     Store.create(initActions, State(), Console.merge.map(_.mapSource(consoleToAction))).map { store =>
       (view(store), store)
@@ -157,7 +157,7 @@ object TodoModule extends StatefulEffectsComponent with
     }
   }
 
-  private def todoItem(todo: Todo, actions: ActionSink, S: Style): VNode = {
+  private def todoItem(todo: Todo, actions: Sink[Action], S: Style): VNode = {
     import outwatch.dom._
     li(
       key := s"${todo.id}",
@@ -166,7 +166,12 @@ object TodoModule extends StatefulEffectsComponent with
     )
   }
 
-  def view(store: Action >--> State,  logger: Logger.ActionSink, parent: TodoComponent.ActionSink)(implicit S: Style): VNode = {
+  def view(
+    store: Action >--> State,
+    logger: Sink[Logger.Action],
+    parent: Sink[TodoComponent.Action]
+  )(implicit S: Style): VNode = {
+    
     import AppRouter._
     import outwatch.dom._
 
@@ -196,8 +201,8 @@ object TodoModule extends StatefulEffectsComponent with
 
   }
 
-  def apply(logger: Logger.ActionSink,
-    parent: TodoComponent.ActionSink,
+  def apply(logger: Sink[Logger.Action],
+    parent: Sink[TodoComponent.Action],
     initActions: Action*
   ): VNode = {
     val routerEffects = AppRouter.asEffect[Effect, Action] {

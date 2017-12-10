@@ -1,6 +1,5 @@
 package outwatch.redux
 
-import outwatch.Sink
 import outwatch.dom.Observable
 
 import scala.language.implicitConversions
@@ -34,7 +33,6 @@ trait EvolvableStateWithEffects[Action, State, Effect] { self: State =>
 
 trait StatefulComponent {
   type Action
-  type ActionSink = Sink[Action]
 
   protected type ComponentState = EvolvableState[Action, State]
   protected type State <: ComponentState
@@ -42,10 +40,7 @@ trait StatefulComponent {
 
 trait StatefulEffectsComponent {
   type Action
-  type ActionSink = Sink[Action]
-
   type Effect
-  type EffectSink = Sink[Effect]
 
   protected type ComponentState = EvolvableStateWithEffects[Action, State, Effect]
   protected type State <: ComponentState
