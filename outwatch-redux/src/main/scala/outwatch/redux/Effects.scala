@@ -2,7 +2,7 @@ package outwatch.redux
 
 import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
-import outwatch.dom.{Handler, Observable, Pipe}
+import outwatch.dom.{Handler, Observable}
 import outwatch.extras.>-->
 
 trait EffectsOps {
@@ -11,16 +11,16 @@ trait EffectsOps {
 
   def effects: Effect => Observable[EffectResult]
 
-  val switch: IO[Effect >--> EffectResult] = Handler.create[Effect]().map { handler =>
-    Pipe(handler, handler.switchMap(effects).share)
+  val switch: IO[Effect >--> EffectResult] = Handler.create[Effect].map { handler =>
+    handler.transformSource(_.switchMap(effects).share)
   }
 
-  val merge: IO[Effect >--> EffectResult] = Handler.create[Effect]().map { handler =>
-    Pipe(handler, handler.mergeMap(effects).share)
+  val merge: IO[Effect >--> EffectResult] = Handler.create[Effect].map { handler =>
+    handler.transformSource(_.mergeMap(effects).share)
   }
 
-  val concat: IO[Effect >--> EffectResult] = Handler.create[Effect]().map { handler =>
-    Pipe(handler, handler.concatMap(effects).share)
+  val concat: IO[Effect >--> EffectResult] = Handler.create[Effect].map { handler =>
+    handler.transformSource(_.concatMap(effects).share)
   }
 
 
