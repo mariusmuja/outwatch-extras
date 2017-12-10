@@ -3,9 +3,10 @@ package demo
 import cats.effect.IO
 import demo.styles._
 import monix.execution.Ack.Continue
+import monix.execution.Cancelable
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
-import outwatch.dom.{Observable, Sink, VNode}
+import outwatch.dom.{Observable, Sink, VDomModifier, VNode, destroy}
 import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
 import outwatch.router.{BaseUrl, RouterOps}
@@ -166,12 +167,26 @@ object TodoModule extends StatefulEffectsComponent with
     )
   }
 
+
+  def managed(subscriptions: IO[Cancelable]*): VDomModifier = {
+    import cats.instances.list._
+    import cats.syntax.traverse._
+    subscriptions.toList.sequence.flatMap { subs: List[Cancelable] =>
+      subs.map { sub =>
+        destroy --> Sink.create(_ => IO {
+          sub.cancel()
+          Continue
+        })
+      }
+    }
+  }
+
   def view(
     store: Action >--> State,
     logger: Sink[Logger.Action],
     parent: Sink[TodoComponent.Action]
   )(implicit S: Style): VNode = {
-    
+
     import AppRouter._
     import outwatch.dom._
 
@@ -184,12 +199,13 @@ object TodoModule extends StatefulEffectsComponent with
       case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
     }
 
-    SinkUtil.redirectInto(store, loggerSink, parentSink).flatMap { actions =>
+    Handler.create[Action].flatMap { actions =>
 
       val todoViews = store.map(_.todos.map(todoItem(_, actions, S)))
 
       AppRouter.push.flatMap { router =>
         div(
+          managed(store <-- actions, loggerSink <-- actions, parentSink <-- actions),
           TextField(actions.redirectMap(AddTodo)),
           button(S.button, S.material,
             onClick(Page.Log("from 'Log only'")) --> router, "Log only"
