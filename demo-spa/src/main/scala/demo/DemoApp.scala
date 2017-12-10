@@ -3,10 +3,9 @@ package demo
 import cats.effect.IO
 import demo.styles._
 import monix.execution.Ack.Continue
-import monix.execution.Cancelable
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
-import outwatch.dom.{Observable, Sink, VDomModifier, VNode, destroy}
+import outwatch.dom.{Observable, Sink, VNode}
 import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
 import outwatch.router.{BaseUrl, RouterOps}
@@ -168,18 +167,7 @@ object TodoModule extends StatefulEffectsComponent with
   }
 
 
-  def managed(subscriptions: IO[Cancelable]*): VDomModifier = {
-    import cats.instances.list._
-    import cats.syntax.traverse._
-    subscriptions.toList.sequence.flatMap { subs: List[Cancelable] =>
-      subs.map { sub =>
-        destroy --> Sink.create(_ => IO {
-          sub.cancel()
-          Continue
-        })
-      }
-    }
-  }
+
 
   def view(
     store: Action >--> State,
@@ -189,6 +177,7 @@ object TodoModule extends StatefulEffectsComponent with
 
     import AppRouter._
     import outwatch.dom._
+    import outwatch.extras.managed
 
     val loggerSink = logger.redirectMap[Action]{
       case AddTodo(value) => Logger.LogAction(s"Add $value")
