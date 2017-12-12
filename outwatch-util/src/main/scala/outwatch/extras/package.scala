@@ -4,6 +4,7 @@ import cats.effect.IO
 import monix.execution.Ack.Continue
 import monix.execution.Cancelable
 import outwatch.dom.VDomModifier
+import outwatch.dom.OutwatchAttributes
 
 package object extras {
   type >-->[-I, +O] = Pipe[I, O]
@@ -12,7 +13,7 @@ package object extras {
 
   def managed(subscription: IO[Cancelable]): VDomModifier = {
     subscription.flatMap { sub: Cancelable =>
-      outwatch.dom.destroy --> Sink.create(_ => IO {
+      OutwatchAttributes.destroy --> Sink.create(_ => IO {
         sub.cancel()
         Continue
       })
@@ -25,7 +26,7 @@ package object extras {
 
     (sub1 :: sub2 :: subscriptions.toList).sequence.flatMap { subs: List[Cancelable] =>
       subs.map { sub =>
-        outwatch.dom.destroy --> Sink.create(_ => IO {
+        OutwatchAttributes.destroy --> Sink.create(_ => IO {
           sub.cancel()
           Continue
         })
