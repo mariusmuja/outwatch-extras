@@ -158,19 +158,23 @@ object TodoModule extends StatefulEffectsComponent with
     }
   }
 
-  val moveInOut: VDomModifier = {
-    import outwatch.dom.Styles.all._
-    VDomModifier(
-      transition := "transform .2s ease-in-out, opacity .2s ease-in-out",
-      transform := "translateX(-50px)",
-      transform.delayed := "translateX(0px)",
-      transform.remove := "translateX(50px)",
-      opacity := 0,
-      opacity.delayed := 1,
-      opacity.remove := 0
-    )
-  }
+  import outwatch.dom.Styles.all._
 
+  val slideInOut = VDomModifier(
+    transition.accum := "transform .2s ease-in-out",
+    transform := "translateX(-50px)",
+    transform.delayed := "translateX(0px)",
+    transform.remove := "translateX(50px)",
+  )
+
+  val fadeInOut = VDomModifier(
+    transition.accum :=  "opacity .2s ease-in-out",
+    opacity := 0,
+    opacity.delayed := 1,
+    opacity.remove := 0
+  )
+
+  val moveInOut =  VDomModifier(slideInOut, fadeInOut)
 
   private def todoItem(todo: Todo, actions: Sink[Action], stl: Style): VNode = {
     import outwatch.dom.all._
@@ -180,9 +184,6 @@ object TodoModule extends StatefulEffectsComponent with
       button(stl.button, stl.material, onClick(RemoveTodo(todo)) --> actions, "Delete")
     )
   }
-
-
-
 
   def view(
     store: Action >--> State,
