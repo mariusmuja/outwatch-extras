@@ -159,13 +159,14 @@ object TodoModule extends StatefulEffectsComponent with
   }
 
   val moveInOut: VDomModifier = {
-    import outwatch.dom.Styles._
-    import outwatch.dom.StylesExtra._
-    Seq(
-      transform := "translateX(-50px)",
+    import outwatch.dom.Styles.all._
+    VDomModifier(
       transition := "transform .2s ease-in-out, opacity .2s ease-in-out",
+      transform := "translateX(-50px)",
       transform.delayed := "translateX(0px)",
       transform.remove := "translateX(50px)",
+      opacity := 0,
+      opacity.delayed := 1,
       opacity.remove := 0
     )
   }
