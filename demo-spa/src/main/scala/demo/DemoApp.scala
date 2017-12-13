@@ -5,7 +5,7 @@ import demo.styles._
 import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
-import outwatch.dom.{Observable, Sink, VNode}
+import outwatch.dom._
 import outwatch.extras.{<--<, >-->}
 import outwatch.redux._
 import outwatch.router.{BaseUrl, RouterOps}
@@ -158,13 +158,25 @@ object TodoModule extends StatefulEffectsComponent with
     }
   }
 
-  private def todoItem(todo: Todo, actions: Sink[Action], S: Style): VNode = {
-    import outwatch.dom._
+  val moveInOut: VDomModifier = {
+    import outwatch.dom.Styles._
+    import outwatch.dom.StylesExtra._
+    Seq(
+      transform := "translateX(-50px)",
+      transition := "transform .2s ease-in-out, opacity .2s ease-in-out",
+      transform.delayed := "translateX(0px)",
+      transform.remove := "translateX(50px)",
+      opacity.remove := 0
+    )
+  }
+
+
+  private def todoItem(todo: Todo, actions: Sink[Action], stl: Style): VNode = {
     import outwatch.dom.all._
     li(
-      key := s"${todo.id}",
+      key := s"${todo.id}", moveInOut,
       span(todo.value),
-      button(S.button, S.material, onClick(RemoveTodo(todo)) --> actions, "Delete")
+      button(stl.button, stl.material, onClick(RemoveTodo(todo)) --> actions, "Delete")
     )
   }
 
@@ -367,7 +379,7 @@ object DemoApp {
 
       Styles.subscribe(_.addToDocument())
 
-      OutWatch.render("#app", BaseLayout(router.map(_.node)))
+      OutWatch.renderInto("#app", BaseLayout(router.map(_.node)))
     }.unsafeRunSync()
   }
 
