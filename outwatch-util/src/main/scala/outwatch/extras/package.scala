@@ -13,7 +13,7 @@ package object extras {
 
   def managed(subscription: IO[Cancelable]): VDomModifier = {
     subscription.flatMap { sub: Cancelable =>
-      OutwatchAttributes.destroy --> Sink.create(_ => IO {
+      OutwatchAttributes.onDestroy --> Sink.create(_ => IO {
         sub.cancel()
         Continue
       })
@@ -26,7 +26,7 @@ package object extras {
 
     (sub1 :: sub2 :: subscriptions.toList).sequence.flatMap { subs: List[Cancelable] =>
       subs.map { sub =>
-        OutwatchAttributes.destroy --> Sink.create(_ => IO {
+        OutwatchAttributes.onDestroy --> Sink.create(_ => IO {
           sub.cancel()
           Continue
         })

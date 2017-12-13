@@ -107,7 +107,7 @@ object TextField extends TextFieldStyle {
         div(S.textfield, S.material,
           label(S.textlabel, "Enter todo"),
           input(S.textinput,
-            onInputString --> inputTodo,
+            inputString --> inputTodo,
             value <-- inputTodo,
             prop("value") <-- inputTodo,
             enterdown(inputTodo) --> filteredActions,

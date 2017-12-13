@@ -28,7 +28,7 @@ trait Mdl {
     IO(updateElement(e)).map(_ => Continue)
   }
 
-  val material: VDomModifier = Seq(Attributes.insert --> insertHook, Attributes.postpatch --> postpatchHook)
+  val material: VDomModifier = Seq(Attributes.onInsert --> insertHook, Attributes.onPostpatch --> postpatchHook)
 
   def material(id: String): VDomModifier = {
 
@@ -39,7 +39,7 @@ trait Mdl {
     val insertHook = Sink.create[dom.Element]( _ => update )
     val postpatchHook = Sink.create[(dom.Element, dom.Element)]( _ => update )
 
-    Seq(Attributes.insert --> insertHook, Attributes.postpatch --> postpatchHook)
+    Seq(Attributes.onInsert --> insertHook, Attributes.onPostpatch --> postpatchHook)
   }
 
 }
