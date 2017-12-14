@@ -1,7 +1,8 @@
 package outwatch.styles
 
 import cats.effect.IO
-import outwatch.dom.{Attribute, Attributes}
+import outwatch.dom.Attribute
+import outwatch.dom.dsl.attributes
 
 import scala.language.implicitConversions
 import scalacss.defaults.Exports.StyleA
@@ -16,7 +17,7 @@ trait ComponentStyle {
   type Style <: StyleSheet
 
   implicit def styleToAttr(styleA: StyleA): IO[Attribute] = {
-    Attributes.className := styleA.htmlClass
+    attributes.className := styleA.htmlClass
   }
 
 }

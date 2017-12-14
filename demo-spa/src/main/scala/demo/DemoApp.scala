@@ -44,8 +44,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
   def view(handler: State <--< Action)(implicit S: Style): VNode = {
     import AppRouter._
-    import outwatch.dom._
-    import outwatch.dom.all._
+    import outwatch.dom.dsl._
 
     router.flatMap { router =>
       div(
@@ -84,8 +83,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
 object TextField extends TextFieldStyle {
 
   def apply(actions: Sink[String], minLen : Int = 4)(implicit S: Style): VNode = {
-    import outwatch.dom._
-    import outwatch.dom.all._
+    import outwatch.dom.dsl._
 
     Handler.create[String].flatMap { inputTodo =>
 
@@ -158,7 +156,7 @@ object TodoModule extends StatefulEffectsComponent with
     }
   }
 
-  import outwatch.dom.Styles.all._
+  import outwatch.dom.dsl.styles.all._
 
   val slideInOut = VDomModifier(
     transition.accum := "transform .2s ease-in-out",
@@ -177,7 +175,7 @@ object TodoModule extends StatefulEffectsComponent with
   val moveInOut =  VDomModifier(slideInOut, fadeInOut)
 
   private def todoItem(todo: Todo, actions: Sink[Action], stl: Style): VNode = {
-    import outwatch.dom.all._
+    import outwatch.dom.dsl._
     li(
       key := s"${todo.id}", moveInOut,
       span(todo.value),
@@ -192,8 +190,7 @@ object TodoModule extends StatefulEffectsComponent with
   )(implicit S: Style): VNode = {
 
     import AppRouter._
-    import outwatch.dom._
-    import outwatch.dom.all._
+    import outwatch.dom.dsl._
     import outwatch.extras.managed
 
     val loggerSink = logger.redirectMap[Action]{
@@ -251,8 +248,7 @@ object TodoComponent extends StatefulComponent {
   }
 
   def view(store: Action >--> State): VNode = {
-    import outwatch.dom._
-    import outwatch.dom.all._
+    import outwatch.dom.dsl._
 
     Logger.withSink(Logger.InitEffect("Effect log"))
       .flatMap { case (logger, loggerSink) =>
@@ -349,8 +345,7 @@ object Console extends Effects[ConsoleEffect, ConsoleEffectResult] {
 object BaseLayout {
 
   def apply(node: Observable[VNode]): VNode = {
-    import outwatch.dom._
-    import outwatch.dom.all._
+    import outwatch.dom.dsl._
     div(
       h4("Todo"),
       div(child <-- node)
@@ -373,11 +368,14 @@ object DemoApp {
 
   def main(args: Array[String]): Unit = {
 
+    println(global.executionModel)
+
     AppRouter.create.flatMap { router =>
       router.map(_.page).subscribe { p =>
         updatePageTitle(p)
         Continue
       }
+
 
       Styles.subscribe(_.addToDocument())
 

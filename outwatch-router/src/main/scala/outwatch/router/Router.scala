@@ -4,8 +4,9 @@ import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.misc.NonFatal
 import org.scalajs.dom
+import outwatch.dom.dsl.{styles, tags}
 import outwatch.dom.helpers.STRef
-import outwatch.dom.{Handler, Observable, Pipe, Styles, Tags, VNode, WindowEvents}
+import outwatch.dom.{Handler, Observable, Pipe, VNode, WindowEvents, dsl}
 import outwatch.extras.>-->
 
 import scala.annotation.tailrec
@@ -61,7 +62,7 @@ trait Router[Page] {
   }
 
   private def invalidConfiguration(page: Page): (Option[Page], VNode) = {
-    Some(page) -> Tags.div(Styles.color.red, s"Invalid configuration, missing rule for ${page.getClass.getName}")
+    Some(page) -> tags.div(styles.color.red, s"Invalid configuration, missing rule for ${page.getClass.getName}")
   }
 
   object Config {
@@ -121,7 +122,7 @@ trait Router[Page] {
           throw RedirectException
       }
 
-      val popStateObservable = WindowEvents.onPopState
+      val popStateObservable = dsl.events.window.onPopState
         .startWith(Seq(()))
         .map(_ => config.parseUrl(baseUrl, AbsUrl.fromWindow))
 
@@ -137,7 +138,7 @@ trait Router[Page] {
         } catch {
           case NonFatal(e) =>
             dom.console.error(e.getMessage)
-            Some((None, Tags.div(outwatch.dom.Styles.color.red, e.getMessage)))
+            Some((None, tags.div(styles.color.red, e.getMessage)))
         }
       }
 

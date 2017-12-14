@@ -200,7 +200,7 @@ sealed abstract class Pot[+A] extends Product with Serializable { self =>
     * @see flatMap
     */
   @inline final def foreach[U](f: A => U): Unit = {
-    if (!isEmpty) f(this.get)
+    if (!isEmpty) f(this.get).asInstanceOf[Unit]
   }
 
   /** Returns a Ready containing the result of

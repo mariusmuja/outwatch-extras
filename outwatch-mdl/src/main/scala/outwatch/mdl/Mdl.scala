@@ -4,7 +4,8 @@ import cats.effect.IO
 import monix.execution.Ack.Continue
 import org.scalajs.dom
 import outwatch.Sink
-import outwatch.dom.{Attributes, VDomModifier}
+import outwatch.dom.VDomModifier
+import outwatch.dom.dsl.attributes.lifecycle._
 
 import scala.scalajs.js
 
@@ -17,7 +18,7 @@ trait Mdl {
 
   private def updateElement(e: dom.Element): Unit = {
     e.removeAttribute("data-upgraded")
-    if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e)
+    if (!js.isUndefined(componentHandler)) componentHandler.upgradeElement(e).asInstanceOf[Unit]
   }
 
   private val insertHook = Sink.create[dom.Element] { e =>
@@ -28,7 +29,7 @@ trait Mdl {
     IO(updateElement(e)).map(_ => Continue)
   }
 
-  val material: VDomModifier = Seq(Attributes.onInsert --> insertHook, Attributes.onPostpatch --> postpatchHook)
+  val material: VDomModifier = Seq(onInsert --> insertHook, onPostpatch --> postpatchHook)
 
   def material(id: String): VDomModifier = {
 
@@ -39,7 +40,7 @@ trait Mdl {
     val insertHook = Sink.create[dom.Element]( _ => update )
     val postpatchHook = Sink.create[(dom.Element, dom.Element)]( _ => update )
 
-    Seq(Attributes.onInsert --> insertHook, Attributes.onPostpatch --> postpatchHook)
+    Seq(onInsert --> insertHook, onPostpatch --> postpatchHook)
   }
 
 }
