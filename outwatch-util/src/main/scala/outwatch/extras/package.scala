@@ -2,7 +2,7 @@ package outwatch
 
 import cats.effect.IO
 import monix.execution.Ack.Continue
-import monix.execution.Cancelable
+import monix.execution.{Cancelable, Scheduler}
 import outwatch.dom.VDomModifier
 import outwatch.dom.dsl.attributes.lifecycle
 
@@ -11,7 +11,7 @@ package object extras {
   type <--<[+O, -I] = Pipe[I, O]
 
 
-  def managed(subscription: IO[Cancelable]): VDomModifier = {
+  def managed(subscription: IO[Cancelable])(implicit s: Scheduler): VDomModifier = {
     subscription.flatMap { sub: Cancelable =>
       lifecycle.onDestroy --> Sink.create(_ => IO {
         sub.cancel()
@@ -20,7 +20,7 @@ package object extras {
     }
   }
 
-  def managed(sub1: IO[Cancelable], sub2: IO[Cancelable], subscriptions: IO[Cancelable]*): VDomModifier = {
+  def managed(sub1: IO[Cancelable], sub2: IO[Cancelable], subscriptions: IO[Cancelable]*)(implicit s: Scheduler): VDomModifier = {
     import cats.instances.list._
     import cats.syntax.traverse._
 

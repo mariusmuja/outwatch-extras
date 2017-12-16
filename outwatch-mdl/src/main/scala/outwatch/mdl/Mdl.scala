@@ -2,6 +2,7 @@ package outwatch.mdl
 
 import cats.effect.IO
 import monix.execution.Ack.Continue
+import monix.execution.Scheduler
 import org.scalajs.dom
 import outwatch.Sink
 import outwatch.dom.VDomModifier
@@ -13,6 +14,8 @@ import scala.scalajs.js
   * Created by marius on 11/06/17.
   */
 trait Mdl {
+
+  implicit def scheduler: Scheduler
 
   private def componentHandler = js.Dynamic.global.componentHandler
 

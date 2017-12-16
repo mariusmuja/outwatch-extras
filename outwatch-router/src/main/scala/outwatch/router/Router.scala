@@ -6,7 +6,7 @@ import monix.execution.misc.NonFatal
 import org.scalajs.dom
 import outwatch.dom.dsl.{styles, tags}
 import outwatch.dom.helpers.STRef
-import outwatch.dom.{Handler, Observable, Pipe, VNode, WindowEvents, dsl}
+import outwatch.dom.{Handler, Observable, Pipe, VNode, dsl}
 import outwatch.extras.>-->
 
 import scala.annotation.tailrec

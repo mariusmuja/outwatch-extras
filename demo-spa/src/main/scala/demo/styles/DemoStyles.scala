@@ -1,12 +1,17 @@
 package demo.styles
 
+import monix.execution.Scheduler
 import outwatch.styles.{ComponentStyle, Styles}
+
 import scalacss.DevDefaults._
 
+trait GlobalScheduler {
+  def scheduler = Scheduler.global
+}
 
 trait LogAreaStyle extends ComponentStyle {
 
-  class Style extends StyleSheet with MdlStyles {
+  class Style extends StyleSheet with MdlStyles with GlobalScheduler {
 
     import dsl._
 
@@ -28,7 +33,7 @@ trait LogAreaStyle extends ComponentStyle {
 
 trait TextFieldStyle extends ComponentStyle {
 
-  class Style extends StyleSheet with MdlStyles {
+  class Style extends StyleSheet with MdlStyles with GlobalScheduler {
 
     import dsl._
 
@@ -57,7 +62,7 @@ trait TextFieldStyle extends ComponentStyle {
 
 trait TodoModuleStyle extends ComponentStyle {
 
-  class Style extends StyleSheet with MdlStyles {
+  class Style extends StyleSheet with MdlStyles with GlobalScheduler {
 
     import dsl._
 

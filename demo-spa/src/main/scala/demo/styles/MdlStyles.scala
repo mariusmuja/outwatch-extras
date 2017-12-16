@@ -10,7 +10,6 @@ import scalacss.internal.Compose
   */
 trait MdlStyles extends Mdl { self: StyleSheet.Inline =>
 
-
   object mdl {
     import dsl._
 
