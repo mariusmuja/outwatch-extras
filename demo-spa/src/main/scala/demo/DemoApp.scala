@@ -26,7 +26,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
   private def now = (new Date).toLocaleString()
 
-  type Effect = ConsoleEffect
+  type Effect = Console.Effect
 
   case class State(
     log: Seq[String] = Seq("Log:")
@@ -34,7 +34,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
     val evolve = {
       case InitEffect(message) =>
-        this -> ConsoleEffect.Log(message)
+        this -> Console.Effect.Log(message)
       case Init(message) =>
         copy(log :+ message)
       case LogAction(line) =>
@@ -64,20 +64,16 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
     }
   }
 
-  private val consoleToAction: ConsoleEffectResult => Action = {
-    case ConsoleEffectResult.Output(str) => LogAction(str)
+  val consoleEffect: IO[Console.Effect >--> Action] = Console.merge[Action] {
+    case Console.Result.Output(str) => LogAction(str)
   }
 
   def apply(initActions: Action*): VNode = {
-    Store.create(initActions, State(), Console.merge.map(_.mapSource(consoleToAction)))
-      .flatMap(view)
+    Store.create(initActions, State(), consoleEffect).flatMap(view)
   }
 
   def withSink(initActions: Action*): IO[(VNode, Sink[Action])] = {
-
-    Store.create(initActions, State(), Console.merge.map(_.mapSource(consoleToAction))).map { store =>
-      (view(store), store)
-    }
+    Store.create(initActions, State(), consoleEffect).map(store => (view(store), store))
   }
 }
 
@@ -157,7 +153,7 @@ object TodoModule extends StatefulEffectsComponent with
     }
   }
 
-  import outwatch.dom.dsl.styles.all._
+  import outwatch.dom.dsl.styles._, extra._
 
   val slideInOut = VDomModifier(
     transition.accum := "transform .2s ease-in-out",
@@ -320,25 +316,23 @@ object AppRouter extends RouterOps {
 
 }
 
-sealed trait ConsoleEffect
-object ConsoleEffect {
-  case class Log(str: String) extends ConsoleEffect
-}
 
-sealed trait ConsoleEffectResult
-object ConsoleEffectResult {
-  case class Output(str: String) extends ConsoleEffectResult
-}
+object Console extends EffectsHandler {
 
-object Console extends Effects[ConsoleEffect, ConsoleEffectResult] {
-  import ConsoleEffect._
-  import ConsoleEffectResult._
+  sealed trait Effect
+  object Effect {
+    case class Log(str: String) extends Effect
+  }
 
-  val effects: ConsoleEffect => Observable[ConsoleEffectResult] = {
-    case Log(str) =>
+  sealed trait Result
+  object Result {
+    case class Output(str: String) extends Result
+  }
+
+  val effects: Effect => Observable[Result] = {
+    case Effect.Log(str) =>
       dom.console.log(s"In console: $str")
-      val obs = Observable(Output(str))
-      obs.delayOnNext(1000.millis)
+      Observable(Result.Output(str)).delayOnNext(1000.millis)
   }
 }
 
@@ -369,14 +363,11 @@ object DemoApp {
 
   def main(args: Array[String]): Unit = {
 
-    println(global.executionModel)
-
     AppRouter.create.flatMap { router =>
       router.map(_.page).subscribe { p =>
         updatePageTitle(p)
         Continue
       }
-
 
       Styles.subscribe(_.addToDocument())
 
