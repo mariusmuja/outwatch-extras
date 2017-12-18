@@ -80,9 +80,7 @@ object Store {
   def create[Action, Effect, State <: EvolvableStateWithEffects[Action, State, Effect]](
     initActions: Seq[Action],
     initialState: State,
-    effects1: IO[Effect >--> Action],
-    effects2: IO[Effect >--> Action],
-    effects: IO[Effect >--> Action]*
+    effects: Seq[IO[Effect >--> Action]]
   ): IO[Action >--> State] = {
 
     import cats.instances.list._
@@ -90,7 +88,7 @@ object Store {
 
     Handler.create[Action](initActions: _*).flatMap { actions =>
       // type annotation to keep IDEA typechecker happy
-      ((effects1 :: effects2 :: effects.toList).sequence: IO[List[Effect >--> Action]]).map { effectHandlers =>
+      (effects.toList.sequence: IO[List[Effect >--> Action]]).map { effectHandlers =>
 
         actions.transformSource { actionSource =>
 
@@ -111,4 +109,13 @@ object Store {
       }
     }
   }
+
+  def create[Action, Effect, State <: EvolvableStateWithEffects[Action, State, Effect]](
+    initActions: Seq[Action],
+    initialState: State,
+    effects1: IO[Effect >--> Action],
+    effects2: IO[Effect >--> Action],
+    effects: IO[Effect >--> Action]*
+  ): IO[Action >--> State] = create(initActions, initialState, effects1 :: effects2 :: effects.toList)
+
 }
