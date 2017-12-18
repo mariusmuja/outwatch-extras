@@ -1,6 +1,6 @@
 package demo.styles
 
-import outwatch.mdl.Mdl
+import outwatch.extras.mdl.Mdl
 
 import scalacss.defaults.Exports._
 import scalacss.internal.Compose

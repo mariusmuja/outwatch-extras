@@ -1,4 +1,4 @@
-package outwatch.styles
+package outwatch.extras.styles
 
 import monix.execution.Ack.Continue
 import monix.execution.{Ack, Cancelable}

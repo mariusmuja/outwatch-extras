@@ -44,15 +44,18 @@ val noPublish = Seq(
   publishLocal := {}
 )
 
-lazy val root = project.in(file("."))
+lazy val extras = project.in(file("."))
+  .settings(
+    name := "outwatch-extras",
+  )
   .aggregate(app, redux, styles, mdl, router, util)
-  .settings(noPublish: _*)
+  .dependsOn(redux, styles, mdl, router, util)
+  .enablePlugins(ScalaJSPlugin)
 
 
 lazy val app = project.in(file("demo-spa"))
   .settings(
     name := "demo-spa",
-    jsEnv := PhantomJSEnv().value,
     useYarn := true,
     webpackBundlingMode := BundlingMode.LibraryAndApplication(),
     scalaJSUseMainModuleInitializer := true
@@ -100,7 +103,6 @@ lazy val router = project.in(file("outwatch-router"))
   )
   .dependsOn(util)
   .enablePlugins(ScalaJSPlugin)
-
 
 lazy val redux = project.in(file("outwatch-redux"))
   .settings(

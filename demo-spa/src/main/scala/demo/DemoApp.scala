@@ -6,10 +6,11 @@ import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
 import outwatch.dom._
+import outwatch.extras.redux.{Effects, StatefulComponent, StatefulEffectsComponent, Store}
+import outwatch.extras.styles.Styles
 import outwatch.extras.{<--<, >-->}
-import outwatch.redux._
-import outwatch.router.{BaseUrl, RouterOps}
-import outwatch.styles.Styles
+import outwatch.extras.redux._
+import outwatch.extras.router.{BaseUrl, RouterOps}
 
 import scala.concurrent.duration._
 import scala.scalajs.js.Date
@@ -105,7 +106,7 @@ object TextField extends TextFieldStyle {
         div(S.textfield, S.material,
           label(S.textlabel, "Enter todo"),
           input(S.textinput,
-            inputString --> inputTodo,
+            onInput.value --> inputTodo,
             value <-- inputTodo,
             prop("value") <-- inputTodo,
             enterdown(inputTodo) --> filteredActions,

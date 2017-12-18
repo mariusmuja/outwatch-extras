@@ -1,4 +1,4 @@
-package outwatch.styles
+package outwatch.extras.styles
 
 import cats.effect.IO
 import outwatch.dom.Attribute

@@ -1,4 +1,4 @@
-package outwatch.redux
+package outwatch.extras.redux
 
 import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global

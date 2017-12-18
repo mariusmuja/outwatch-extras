@@ -1,4 +1,4 @@
-package outwatch.router
+package outwatch.extras.router
 
 import java.util.UUID
 import java.util.regex.{Matcher, Pattern}

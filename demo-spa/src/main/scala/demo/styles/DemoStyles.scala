@@ -1,7 +1,7 @@
 package demo.styles
 
 import monix.execution.Scheduler
-import outwatch.styles.{ComponentStyle, Styles}
+import outwatch.extras.styles.{ComponentStyle, Styles}
 
 import scalacss.DevDefaults._
 

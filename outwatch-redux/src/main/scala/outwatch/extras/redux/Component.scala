@@ -1,4 +1,4 @@
-package outwatch.redux
+package outwatch.extras.redux
 
 import outwatch.dom.Observable
 

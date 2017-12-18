@@ -1,4 +1,4 @@
-package outwatch.router
+package outwatch.extras.router
 
 import cats.effect.IO
 import monix.reactive.Observable

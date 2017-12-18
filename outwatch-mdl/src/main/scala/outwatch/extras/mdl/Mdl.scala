@@ -1,4 +1,4 @@
-package outwatch.mdl
+package outwatch.extras.mdl
 
 import cats.effect.IO
 import monix.execution.Ack.Continue
