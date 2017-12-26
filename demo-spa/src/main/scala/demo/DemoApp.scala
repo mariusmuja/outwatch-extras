@@ -6,11 +6,10 @@ import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
 import outwatch.dom._
-import outwatch.extras.redux.{Effects, StatefulComponent, StatefulEffectsComponent, Store}
+import outwatch.extras.redux.{StatefulComponent, StatefulEffectsComponent, Store, _}
+import outwatch.extras.router.{BaseUrl, RouterOps}
 import outwatch.extras.styles.Styles
 import outwatch.extras.{<--<, >-->}
-import outwatch.extras.redux._
-import outwatch.extras.router.{BaseUrl, RouterOps}
 
 import scala.concurrent.duration._
 import scala.scalajs.js.Date
@@ -153,7 +152,8 @@ object TodoModule extends StatefulEffectsComponent with
     }
   }
 
-  import outwatch.dom.dsl.styles._, extra._
+  import outwatch.dom.dsl.styles._
+  import extra._
 
   val slideInOut = VDomModifier(
     transition.accum := "transform .2s ease-in-out",

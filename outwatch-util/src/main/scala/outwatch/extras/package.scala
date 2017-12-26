@@ -3,7 +3,7 @@ package outwatch
 import cats.effect.IO
 import monix.execution.Ack.Continue
 import monix.execution.{Cancelable, Scheduler}
-import outwatch.dom.VDomModifier
+import outwatch.dom._
 import outwatch.dom.dsl.attributes.lifecycle
 
 package object extras {
@@ -21,15 +21,14 @@ package object extras {
   }
 
   def managed(sub1: IO[Cancelable], sub2: IO[Cancelable], subscriptions: IO[Cancelable]*)(implicit s: Scheduler): VDomModifier = {
-    import cats.instances.list._
-    import cats.syntax.traverse._
 
-    (sub1 :: sub2 :: subscriptions.toList).sequence.flatMap { subs: List[Cancelable] =>
+    (sub1 :: sub2 :: subscriptions.toList).sequence.flatMap { subs: Seq[Cancelable] =>
       subs.map { sub =>
         lifecycle.onDestroy --> Sink.create(_ => IO {
           sub.cancel()
           Continue
-        })
+        }
+        )
       }
     }
   }

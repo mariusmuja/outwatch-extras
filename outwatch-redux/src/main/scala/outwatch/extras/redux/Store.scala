@@ -62,7 +62,6 @@ object Store {
         handler.transformSource { handler =>
 
           val reducer: (State, Action) => State = (state, action) => {
-            //          println(s" --> In reducer: $action")
             val se = state.evolve(action)
             se.effects.subscribe(effectHandler.observer.onNext _)
             se.state
@@ -93,7 +92,6 @@ object Store {
         actions.transformSource { actionSource =>
 
           val reducer: (State, Action) => State = (state, action) => {
-            //          println(s" --> In reducer: $action")
             val se = state.evolve(action)
             effectHandlers.foreach(effectHandler =>
               se.effects.subscribe(effectHandler.observer.onNext _)
