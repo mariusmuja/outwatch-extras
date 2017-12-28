@@ -188,7 +188,6 @@ object TodoModule extends StatefulEffectsComponent with
 
     import AppRouter._
     import outwatch.dom.dsl._
-    import outwatch.extras.managed
 
     val loggerSink = logger.redirectMap[Action]{
       case AddTodo(value) => Logger.LogAction(s"Add $value")
@@ -374,6 +373,7 @@ object DemoApp {
       OutWatch.renderInto("#app", BaseLayout(router.map(_.node)))
     }.unsafeRunSync()
   }
+
 
 
 }
