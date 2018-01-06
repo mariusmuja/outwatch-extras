@@ -2,8 +2,22 @@ package outwatch.extras.data
 
 import monix.execution.misc.NonFatal
 import monix.reactive.Observable
+import outwatch.dom.VNode
 
 import scala.concurrent.{ExecutionContext, Future}
+
+
+trait PotErrorRender {
+  def render(e: Throwable): VNode
+}
+
+trait PotPendingRender {
+  def render(startTime: Long): VNode
+}
+
+trait PotEmptyRender {
+  def render: VNode
+}
 
 
 trait PotUtil {

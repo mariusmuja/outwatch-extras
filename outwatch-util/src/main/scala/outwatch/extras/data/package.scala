@@ -4,19 +4,6 @@ import outwatch.dom.VNode
 
 package object data {
 
-  trait PotErrorRender {
-    def render(e: Throwable): VNode
-  }
-
-  trait PotPendingRender {
-    def render(startTime: Long): VNode
-  }
-
-  trait PotEmptyRender {
-    def render: VNode
-  }
-
-
   import outwatch.dom.dsl.div
 
   implicit class PotSeqRender[T](val pot: Pot[Seq[T]]) extends AnyVal {
