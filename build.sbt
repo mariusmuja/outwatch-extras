@@ -70,7 +70,7 @@ lazy val styles = project.in(file("outwatch-styles"))
     name := "outwatch-styles",
     libraryDependencies ++=
       "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
-        "com.github.japgolly.scalacss" %%% "core" % "0.5.3" ::
+        "com.github.japgolly.scalacss" %%% "core" % "0.5.4" ::
         Nil
   )
   .enablePlugins(ScalaJSPlugin)
