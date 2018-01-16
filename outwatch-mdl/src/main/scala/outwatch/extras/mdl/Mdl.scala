@@ -1,6 +1,5 @@
 package outwatch.extras.mdl
 
-import cats.effect.IO
 import monix.execution.Ack.Continue
 import monix.execution.Scheduler
 import org.scalajs.dom
@@ -25,25 +24,34 @@ trait Mdl {
   }
 
   private val insertHook = Sink.create[dom.Element] { e =>
-    IO(updateElement(e)).map(_ => Continue)
+    updateElement(e)
+    Continue
   }
 
-  private val postpatchHook = Sink.create[(dom.Element, dom.Element)] { case (_, e) =>
-    IO(updateElement(e)).map(_ => Continue)
+  private val postPatchHook = Sink.create[(dom.Element, dom.Element)] { case (_, e) =>
+    updateElement(e)
+    Continue
   }
 
-  val material: VDomModifier = Seq(onInsert --> insertHook, onPostpatch --> postpatchHook)
+  val material: VDomModifier = VDomModifier(
+    insertHook.flatMap(sink => onInsert --> sink),
+    postPatchHook.flatMap(sink => onPostPatch --> sink)
+  )
 
   def material(id: String): VDomModifier = {
 
-    val update = IO {
+    val update = () => {
       Option(dom.document.getElementById(id)).foreach(updateElement)
-    }.map(_ => Continue)
+      Continue
+    }
 
-    val insertHook = Sink.create[dom.Element]( _ => update )
-    val postpatchHook = Sink.create[(dom.Element, dom.Element)]( _ => update )
+    val insertHook = Sink.create[dom.Element](_ => update())
+    val postPatchHook = Sink.create[(dom.Element, dom.Element)](_ => update() )
 
-    Seq(onInsert --> insertHook, onPostpatch --> postpatchHook)
+    VDomModifier(
+      insertHook.flatMap(sink => onInsert --> sink),
+      postPatchHook.flatMap(sink => onPostPatch --> sink)
+    )
   }
 
 }

@@ -15,6 +15,15 @@ trait PotPendingRender {
   def render(startTime: Long): VNode
 }
 
+trait PotPendingStaleRender {
+  def render(vnode: VNode, startTime: Long): VNode
+}
+object PotPendingStaleRender {
+  implicit object default extends PotPendingStaleRender {
+    def render(vnode: VNode, startTime: Long): VNode  = vnode
+  }
+}
+
 trait PotEmptyRender {
   def render: VNode
 }

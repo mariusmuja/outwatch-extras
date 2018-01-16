@@ -2,8 +2,12 @@ package outwatch.extras.redux
 
 import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
+import monix.execution.misc.NonFatal
+import org.scalajs.dom
 import outwatch.dom.{Handler, Observable}
 import outwatch.extras.>-->
+
+import scala.util.Try
 
 /**
   * Created by marius on 11/06/17.
@@ -61,11 +65,14 @@ object Store {
 
         handler.transformSource { handler =>
 
-          val reducer: (State, Action) => State = (state, action) => {
+          val reducer: (State, Action) => State = (state, action) => Try {
             val se = state.evolve(action)
             se.effects.subscribe(effectHandler.observer.onNext _)
             se.state
-          }
+          }.recover { case NonFatal(e) =>
+            dom.console.error(e.toString)
+            state
+          }.get
 
           Observable.merge(handler, effectHandler)
             .scan(initialState)(reducer)
@@ -91,13 +98,13 @@ object Store {
 
         actions.transformSource { actionSource =>
 
-          val reducer: (State, Action) => State = (state, action) => {
+          val reducer: (State, Action) => State = (state, action) => Try {
             val se = state.evolve(action)
             effectHandlers.foreach(effectHandler =>
               se.effects.subscribe(effectHandler.observer.onNext _)
             )
             se.state
-          }
+          }.getOrElse(state)
 
           Observable.merge(actionSource :: effectHandlers: _*)
             .scan(initialState)(reducer)

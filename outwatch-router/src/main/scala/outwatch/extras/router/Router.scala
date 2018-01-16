@@ -6,7 +6,7 @@ import monix.execution.misc.NonFatal
 import org.scalajs.dom
 import outwatch.dom.dsl.{styles, tags}
 import outwatch.dom.helpers.STRef
-import outwatch.dom.{Handler, Observable, Pipe, VNode, dsl}
+import outwatch.dom.{Handler, Observable, VNode, dsl}
 import outwatch.extras.>-->
 
 import scala.annotation.tailrec
@@ -159,7 +159,7 @@ trait Router[Page] {
       }
       .onErrorFallbackTo(Observable.empty) // in case of a Force redirect
 
-      Pipe(pageHandler, source.share)
+      pageHandler.transformSource(_ => source.share)
     }
   }
 
