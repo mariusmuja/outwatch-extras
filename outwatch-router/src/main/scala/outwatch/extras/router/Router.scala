@@ -122,7 +122,7 @@ trait Router[Page] {
           throw RedirectException
       }
 
-      val popStateObservable = dsl.events.window.onPopState
+      val popStateObservable: Observable[Option[Parsed]] = dsl.events.window.onPopState
         .startWith(Seq(()))
         .map(_ => config.parseUrl(baseUrl, AbsUrl.fromWindow))
 

@@ -28,12 +28,15 @@ trait Mdl {
     Continue
   }
 
-  private val postpatchHook = Sink.create[(dom.Element, dom.Element)] { case (_, e) =>
+  private val postPatchHook = Sink.create[(dom.Element, dom.Element)] { case (_, e) =>
     updateElement(e)
     Continue
   }
 
-  val material: VDomModifier = Seq(onInsert --> insertHook, onPostpatch --> postpatchHook)
+  val material: VDomModifier = VDomModifier(
+    insertHook.flatMap(sink => onInsert --> sink),
+    postPatchHook.flatMap(sink => onPostPatch --> sink)
+  )
 
   def material(id: String): VDomModifier = {
 
@@ -43,9 +46,12 @@ trait Mdl {
     }
 
     val insertHook = Sink.create[dom.Element](_ => update())
-    val postpatchHook = Sink.create[(dom.Element, dom.Element)](_ => update() )
+    val postPatchHook = Sink.create[(dom.Element, dom.Element)](_ => update() )
 
-    Seq(onInsert --> insertHook, onPostpatch --> postpatchHook)
+    VDomModifier(
+      insertHook.flatMap(sink => onInsert --> sink),
+      postPatchHook.flatMap(sink => onPostPatch --> sink)
+    )
   }
 
 }
