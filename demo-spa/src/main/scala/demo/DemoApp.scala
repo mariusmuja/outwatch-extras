@@ -209,9 +209,6 @@ object TodoModule extends StatefulEffectsComponent with
           button(S.button, S.material,
             onClick(Page.Log("from 'Log only'")) --> router, "Log only"
           ),
-          button(S.button, S.material,
-            onClick(Page.Test) --> router, "Test page"
-          ),
           ul(children <-- todoViews)
         )
       }
@@ -281,32 +278,15 @@ object TodoComponent extends StatefulComponent {
 
 }
 
-
-object TestComponent{
-  import outwatch.dom.dsl._
-  def apply(): VNode = {
-    div(
-      h4("Test component"),
-      div("Testing")
-    )
-  }
-}
-
 object AppPages {
 
   sealed abstract class Page(val title: String)
 
-
-  sealed abstract class WithNavbar(title: String) extends Page(title)
-  sealed abstract class WithoutNavbar(title: String) extends Page(title)
-
   object Page {
 
-    object Todo extends WithNavbar("Todo List")
+    object Todo extends Page("Todo List")
 
-    object Test extends WithNavbar("Test")
-
-    final case class Log(message: String) extends WithoutNavbar("Log page")
+    case class Log(message: String) extends Page("Log page")
 
   }
 
@@ -328,7 +308,6 @@ object AppRouter extends RouterOps {
       .rules(
         ("log" / remainingPath).caseClass[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
         "todo".const(Page.Todo) ~> TodoComponent(),
-        "test".const(Page.Test) ~> TestComponent(),
         "log".const(Unit) ~> Router.Replace(Page.Log("log only"))
       )
       .notFound(Router.Replace(Page.Todo))
@@ -359,40 +338,11 @@ object Console extends EffectsHandler {
 
 object BaseLayout {
 
-
-  def navbar(): VNode = {
+  def apply(node: Observable[VNode]): VNode = {
     import outwatch.dom.dsl._
-    Handler.create[Int].flatMap{ num =>
-
-      val sum = num.scan(0)(_ + _).startWith(Seq(0))
-
-      div("Navbar:",
-        button("Click", onClick(1) --> num),
-        input(value <-- sum.map(_.toString))
-      )
-    }
-  }
-
-
-  def apply(state: Observable[AppRouter.Router.State]): VNode = {
-    import outwatch.dom.dsl._
-    import cats.instances.all._
-
-    val withNavbar = state.collect { case AppRouter.Router.State(Some(p: AppPages.WithNavbar), node) => (node, true) }
-    val withoutNavbar = state.collect { case AppRouter.Router.State(Some(p: AppPages.WithoutNavbar), node) => (node, false) }
-
-    val mixed = Observable.merge(withNavbar, withoutNavbar)
-
     div(
       h4("Todo"),
-      child <-- mixed.distinctUntilChangedByKey(_._2).map { case (node, hasNavbar) =>
-        if (hasNavbar) {
-          div(navbar(), child <-- withNavbar.map(_._1).startWith(Seq(node)))
-        }
-        else {
-          div(child <-- withoutNavbar.map(_._1).startWith(Seq(node)))
-        }
-      }
+      div(child <-- node)
     )
   }
 }
@@ -420,7 +370,7 @@ object DemoApp {
 
       Styles.subscribe(_.addToDocument())
 
-      OutWatch.renderInto("#app", BaseLayout(router))
+      OutWatch.renderInto("#app", BaseLayout(router.map(_.node)))
     }.unsafeRunSync()
   }
 
