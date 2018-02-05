@@ -331,7 +331,7 @@ object Console extends EffectsHandler {
   val effects: Effect => Observable[Result] = {
     case Effect.Log(str) =>
       dom.console.log(s"In console: $str")
-      Observable(Result.Output(str)).delayOnNext(1000.millis)
+      Observable.pure(Result.Output(str)).delayOnNext(1000.millis)
   }
 }
 
