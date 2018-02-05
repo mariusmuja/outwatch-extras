@@ -1,7 +1,7 @@
 
 
 inThisBuild(Seq(
-  version := "0.2.0-RC4",
+  version := "0.2.0-RC5",
   organization := "io.github.mariusmuja",
   scalaVersion := crossScalaVersions.value.head,
   crossScalaVersions := Seq("2.12.4", "2.11.11"),
@@ -38,7 +38,7 @@ inThisBuild(Seq(
 )
 
 
-val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-RC2")
+val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-RC3")
 
 val noPublish = Seq(
   publishArtifact := false,
