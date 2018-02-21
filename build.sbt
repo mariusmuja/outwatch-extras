@@ -1,7 +1,7 @@
 
 
 inThisBuild(Seq(
-  version := "0.2.0-RC5",
+  version := "0.2.2",
   organization := "io.github.mariusmuja",
   scalaVersion := crossScalaVersions.value.head,
   crossScalaVersions := Seq("2.12.4", "2.11.11"),

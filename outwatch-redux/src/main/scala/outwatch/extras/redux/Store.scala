@@ -26,8 +26,8 @@ object Store {
 
         handler
           .scan(initialState)(reducer)
-          .startWith(Seq(initialState))
           .share
+          .startWith(Seq(initialState))
 
       }
     }
@@ -47,8 +47,8 @@ object Store {
 
         Observable.merge(handler, actionSource)
           .scan(initialState)(reducer)
-          .startWith(Seq(initialState))
           .share
+          .startWith(Seq(initialState))
       }
     }
   }
@@ -76,8 +76,8 @@ object Store {
 
           Observable.merge(handler, effectHandler)
             .scan(initialState)(reducer)
-            .startWith(Seq(initialState))
             .share
+            .startWith(Seq(initialState))
         }
       }
     }
@@ -108,8 +108,8 @@ object Store {
 
           Observable.merge(actionSource :: effectHandlers: _*)
             .scan(initialState)(reducer)
-            .startWith(Seq(initialState))
             .share
+            .startWith(Seq(initialState))
         }
       }
     }
