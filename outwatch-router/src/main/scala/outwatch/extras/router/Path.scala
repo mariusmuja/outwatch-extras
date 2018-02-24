@@ -46,9 +46,9 @@ final case class BaseUrl(value: String) extends PathLike[BaseUrl] {
     s"$this doesn't seem to be a valid URL. It's missing '://'. Consider using BaseUrl.fromWindowOrigin."
   )
 
-  override protected def make(s: String) = BaseUrl(s)
+  override protected def make(s: String): BaseUrl = BaseUrl(s)
 
-  override protected def str(s: BaseUrl) = s.value
+  override protected def str(s: BaseUrl): String = s.value
 
   def apply(p: Path): AbsUrl = AbsUrl(value + p.value)
 
@@ -84,9 +84,9 @@ object BaseUrl {
   * The portion of the URL after the [[BaseUrl]].
   */
 final case class Path(value: String) extends PathLike[Path] {
-  override protected def make(s: String) = Path(s)
+  override protected def make(s: String): Path = Path(s)
 
-  override protected def str(s: Path) = s.value
+  override protected def str(s: Path): String = s.value
 
   def abs(implicit base: BaseUrl): AbsUrl = base apply this
 
@@ -111,9 +111,9 @@ final case class AbsUrl(value: String) extends PathLike[AbsUrl] {
     s"$this doesn't seem to be a valid URL. It's missing '://'. Consider using AbsUrl.fromWindow."
   )
 
-  override protected def make(s: String) = AbsUrl(s)
+  override protected def make(s: String): AbsUrl = AbsUrl(s)
 
-  override protected def str(s: AbsUrl) = s.value
+  override protected def str(s: AbsUrl): String = s.value
 }
 
 object AbsUrl {

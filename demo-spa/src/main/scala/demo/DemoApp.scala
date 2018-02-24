@@ -211,7 +211,7 @@ object TodoModule extends StatefulEffectsComponent with
           button(S.button, S.material,
             onClick(Page.Log("from 'Log only'")) --> router, "Log only"
           ),
-          ul(children <-- todoViews)
+          ul(todoViews)
         )
       }
     }
@@ -306,9 +306,11 @@ object AppRouter extends RouterOps {
   val config = Router.Config { builder =>
     import builder._
 
+    import builder.Conv
+
     builder
       .rules(
-        ("log" / remainingPath).caseClass[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
+        ("log" / remainingPath).as[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
         "todo".const(Page.Todo) ~> TodoComponent(),
         "log".const(Unit) ~> Router.Replace(Page.Log("log only"))
       )
