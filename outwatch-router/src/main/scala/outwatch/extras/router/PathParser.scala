@@ -3,8 +3,9 @@ package outwatch.extras.router
 import java.util.UUID
 import java.util.regex.{Matcher, Pattern}
 
-import scala.language.experimental.macros
 import scala.language.{higherKinds, implicitConversions}
+import shapeless.{::, Generic, HList, HNil}
+import shapeless.ops.hlist.{Reverse, Tupler}
 
 
 trait PathParser {
@@ -17,7 +18,7 @@ trait PathParser {
     *
     * http://stackoverflow.com/questions/2593637/how-to-escape-regular-expression-in-javascript
     */
-  def regexEscape(s: String): String = {
+  private def regexEscape(s: String): String = {
     var r = s
     r = regexEscape1.replaceAllIn(r, """\\$1""")
     r = regexEscape2.replaceAllIn(r, """\\x08""")
@@ -28,15 +29,16 @@ trait PathParser {
     * Route builder. Allows you to specify routes like `"user" / int / "display"`.
     * Once complete, [[RouteFragment]] will become a [[Route]].
     */
+
   object RouteFragment {
 
     trait Composition[A, B] {
-      type C
-      val ga: C => A
-      val gb: C => B
-      val gc: (A, B) => C
+      type Out
+      val ga: Out => A
+      val gb: Out => B
+      val gc: (A, B) => Out
 
-      def apply(fa: RouteFragment[A], fb: RouteFragment[B]): RouteFragment[C] =
+      def apply(fa: RouteFragment[A], fb: RouteFragment[B]): RouteFragment[Out] =
         new RouteFragment(
           fa.regex + fb.regex,
           fa.matchGroups + fb.matchGroups,
@@ -45,59 +47,26 @@ trait PathParser {
         )
     }
 
-    trait Composition_PriLowest {
-      implicit def T2[A, B] = Composition[A, B, (A, B)](_._1, _._2, (_, _))
+    object Composition {
+
+      type Aux[A, B, O] = Composition[A, B] {type Out = O}
+
+      implicit def appendItem[L <: HList, H]: Composition.Aux[L, H, H :: L] =
+        Composition[L, H, H :: L](_.tail, _.head, (l, h) => h :: l)
+
+      implicit def appendHNil[A]: Aux[A, HNil, A] = Composition[A, HNil, A](identity, _ => HNil, (a, _) => a)
+
+      def apply[A, B, O](a: O => A, b: O => B, c: (A, B) => O): Aux[A, B, O] = new Composition[A, B] {
+        type Out = O
+        val ga = a
+        val gb = b
+        val gc = c
+      }
     }
 
-    trait Composition_PriLow extends Composition_PriLowest {
-      implicit def T8[A, B, C, D, E, F, G, H] = Composition[(A, B, C, D, E, F, G), H, (A, B, C, D, E, F, G, H)](
-        r => (r._1, r._2, r._3, r._4, r._5, r._6, r._7), _._8, (l, r) => (l._1, l._2, l._3, l._4, l._5, l._6, l._7, r)
-      )
+    def literal(s: String): RouteFragment[HNil] = new RouteFragment(regexEscape(s), 0, _ => Option(HNil), _ => s)
 
-      implicit def T7[A, B, C, D, E, F, G] = Composition[(A, B, C, D, E, F), G, (A, B, C, D, E, F, G)](
-        r => (r._1, r._2, r._3, r._4, r._5, r._6), _._7, (l, r) => (l._1, l._2, l._3, l._4, l._5, l._6, r)
-      )
-
-      implicit def T6[A, B, C, D, E, F] = Composition[(A, B, C, D, E), F, (A, B, C, D, E, F)](
-        r => (r._1, r._2, r._3, r._4, r._5), _._6, (l, r) => (l._1, l._2, l._3, l._4, l._5, r)
-      )
-
-      implicit def T5[A, B, C, D, E] = Composition[(A, B, C, D), E, (A, B, C, D, E)](
-        r => (r._1, r._2, r._3, r._4), _._5, (l, r) => (l._1, l._2, l._3, l._4, r)
-      )
-
-      implicit def T4[A, B, C, D] = Composition[(A, B, C), D, (A, B, C, D)](
-        r => (r._1, r._2, r._3), _._4, (l, r) => (l._1, l._2, l._3, r)
-      )
-
-      implicit def T3[A, B, C] = Composition[(A, B), C, (A, B, C)](
-        r => (r._1, r._2), _._3, (l, r) => (l._1, l._2, r)
-      )
-    }
-
-    trait Composition_PriMed extends Composition_PriLow {
-      implicit def unitToOther[A] = Composition[Unit, A, A](_ => (), identity, (_, a) => a)
-
-      implicit def otherToUnit[A] = Composition[A, Unit, A](identity, _ => (), (a, _) => a)
-    }
-
-    object Composition extends Composition_PriMed {
-      implicit def unitToUnit = Composition[Unit, Unit, Unit](_ => (), _ => (), (_, _) => ())
-
-      def apply[A, B, O](a: O => A, b: O => B, c: (A, B) => O) =
-        new Composition[A, B] {
-          override type C = O
-          val ga = a
-          val gb = b
-          val gc = c
-        }
-    }
-
-    def literal(s: String): RouteFragment[Unit] =
-      new RouteFragment(regexEscape(s), 0, _ => Option(()), _ => s)
-
-    val / = literal("/")
-
+    val / : RouteFragment[HNil] = literal("/")
   }
 
   abstract class RouteCommon[R[X] <: RouteCommon[R, X], A] {
@@ -118,20 +87,30 @@ trait PathParser {
       *
       * Any `A` can be turned into a `B` and vice versa.
       */
-    final def xmap[B](b: A => B)(a: B => A): R[B] =
-      pmap(a => Some(b(a)))(a)
+    final def xmap[B](b: A => B)(a: B => A): R[B] = pmap(a => Some(b(a)))(a)
 
-    final def filter(f: A => Boolean): R[A] =
-      parseThen(_ filter f)
+    final def filter(f: A => Boolean): R[A] = parseThen(_ filter f)
 
-    final def mapParsed[B <: A](f: A => B): R[B] =
-      xmap(f)(x => x)
+    final def mapParsed[B <: A](f: A => B): R[B] = xmap(f)(x => x)
 
-    final def mapInput[B >: A](f: B => A): R[B] =
-      xmap[B](x => x)(f)
+    final def mapInput[B >: A](f: B => A): R[B] = xmap[B](x => x)(f)
 
-    final def const[B](b: B)(implicit ev: A =:= Unit, ev2: Unit =:= A): R[B] =
-      xmap(_ => b)(_ => ())
+    final def const[B](b: B)(implicit ev: HNil =:= A): R[B] = xmap(_ => b)(_ => HNil)
+  }
+
+  implicit class RouteConversion[A <: HList, R <: HList](route: RouteFragment[A])(
+    implicit
+    reverse: Reverse.Aux[A, R],
+    reverse2: Reverse.Aux[R, A]
+  ) {
+    def mapTo[B](implicit gen: Generic.Aux[B, R]): RouteFragment[B] =
+      route.xmap(a => gen.from(reverse(a)))(b => reverse2(gen.to(b)))
+
+    def tupled[T](implicit tupler: Tupler.Aux[R, T], gen: Generic.Aux[T, R]): RouteFragment[T] =
+      route.xmap(a => tupler(reverse(a)))(b => reverse2(gen.to(b)))
+
+    @deprecated("Use .mapTo[T] instead", "0.2.3")
+    def caseClass[B](implicit genB: Generic.Aux[B, R]): RouteFragment[B] = mapTo[B]
   }
 
   /**
@@ -147,14 +126,13 @@ trait PathParser {
 
     import RouteFragment.Composition
 
-    override def toString =
-      s"RouteFragment($regex)"
+    override def toString = s"RouteFragment($regex)"
 
-    def ~[B](next: RouteFragment[B])(implicit c: Composition[A, B]): RouteFragment[c.C] =
+    def ~[B](next: RouteFragment[B])(implicit c: Composition[A, B]): RouteFragment[c.Out] =
       c(this, next)
 
-    def /[B](next: RouteFragment[B])(implicit c: Composition[A, B]): RouteFragment[c.C] =
-      this ~ RouteFragment./ ~ next
+    def /[B](next: RouteFragment[B])(implicit c: Composition[A, B]): RouteFragment[c.Out] =
+      c(this ~ RouteFragment./, next)
 
     override def parseThen(f: Option[A] => Option[A]): RouteFragment[A] =
       new RouteFragment(regex, matchGroups, f compose parse, build)
@@ -162,18 +140,9 @@ trait PathParser {
     override def pmap[B](b: A => Option[B])(a: B => A): RouteFragment[B] =
       new RouteFragment(regex, matchGroups, parse(_) flatMap b, build compose a)
 
-    /**
-      * Maps the captures values of the route to a case class.
-      */
-    def caseClass[B]: RouteFragment[B] = macro RouterMacros.quietCaseClass[RouteFragment, B]
-
-    /**
-      * Same as [[caseClass]] except the code generated by the macro is printed to stdout.
-      */
-    def caseClassDebug[B]: RouteFragment[B] = macro RouterMacros.debugCaseClass[RouteFragment, B]
-
     def option: RouteFragment[Option[A]] = new RouteFragment[Option[A]](
-      s"($regex)?", matchGroups + 1,
+      s"($regex)?",
+      matchGroups + 1,
       g => Some(if (g(0) eq null) None else parse(i => g(i + 1))), _.fold("")(build)
     )
 
@@ -187,7 +156,8 @@ trait PathParser {
     }
   }
 
-  class RouteFragmentOption[A](private val r: RouteFragment[Option[A]])  {
+
+  implicit class RouteFragmentOption[A](private val r: RouteFragment[Option[A]])  {
 
     /**
       * Specify a default value when parsing.
@@ -195,8 +165,7 @@ trait PathParser {
       * Eg. If the path is like "/file[.format]" and the default is JSON, "/file" will be read as "/file.json", but
       * when generating a path with JSON this will generate "/file.json" instead of "/file".
       */
-    def parseDefault(default: => A): RouteFragment[A] =
-      r.xmap(_ getOrElse default)(Some(_))
+    def parseDefault(default: => A): RouteFragment[A] = r.xmap(_ getOrElse default)(Some(_))
 
     /**
       * Specify a default value.
@@ -214,7 +183,8 @@ trait PathParser {
   /**
     * A complete route.
     */
-  final class Route[A](pattern: Pattern,
+  final class Route[A](
+    pattern: Pattern,
     parseFn: Matcher => Option[A],
     buildFn: A => Path
   ) extends RouteCommon[Route, A] {
@@ -227,16 +197,6 @@ trait PathParser {
     override def pmap[B](b: A => Option[B])(a: B => A): Route[B] =
       new Route(pattern, parseFn(_) flatMap b, buildFn compose a)
 
-    /**
-      * Maps the captures values of the route to a case class.
-      */
-    def caseClass[B]: Route[B] = macro RouterMacros.quietCaseClass[Route, B]
-
-    /**
-      * Same as [[caseClass]] except the code generated by the macro is printed to stdout.
-      */
-    def caseClassDebug[B]: Route[B] = macro RouterMacros.debugCaseClass[Route, B]
-
     def parse(path: Path): Option[A] = {
       val m = pattern.matcher(path.value)
       if (m.matches) parseFn(m) else None
@@ -246,12 +206,15 @@ trait PathParser {
   }
 
 
-  private def uuidRegex = "([A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12})"
+  private val intRegex = "(-?\\d+)"
+  private val doubleRegex = "(-?\\d+\\.?\\d*)"
+  private val uuidRegex = "([A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12})"
 
   def root: Path = Path.root
-  val int = new RouteFragment[Int]("(-?\\d+)", 1, g => Some(g(0).toInt), _.toString)
-  val long = new RouteFragment[Long]("(-?\\d+)", 1, g => Some(g(0).toLong), _.toString)
-  val uuid = new RouteFragment[UUID](uuidRegex, 1, g => Some(UUID fromString g(0)), _.toString)
+  val int = new RouteFragment[Int](intRegex, 1, g => Some(g(0).toInt), _.toString)
+  val long = new RouteFragment[Long](intRegex, 1, g => Some(g(0).toLong), _.toString)
+  val double = new RouteFragment[Double](doubleRegex, 1, g => Some(g(0).toDouble), _.toString)
+  val uuid = new RouteFragment[UUID](uuidRegex, 1, g => Some(UUID.fromString(g(0))), _.toString)
 
   private def stringRouteFragment(regex: String): RouteFragment[String] =
     new RouteFragment(regex, 1, g => Some(g(0)), identity)
@@ -275,10 +238,7 @@ trait PathParser {
     stringRouteFragment("(.*)$")
 
 
-
-  implicit def convertRouteFragmentOption[A](r: RouteFragment[Option[A]]): RouteFragmentOption[A] = new RouteFragmentOption(r)
-
-  implicit def routeFragmentFromString(l: String): RouteFragment[Unit] = RouteFragment.literal(l)
-  implicit def routeFragmentFromPath(p: Path): RouteFragment[Unit] = RouteFragment.literal(p.value)
+  implicit def routeFragmentFromString(l: String): RouteFragment[HNil] = RouteFragment.literal(l)
+  implicit def routeFragmentFromPath(p: Path): RouteFragment[HNil] = RouteFragment.literal(p.value)
 
 }

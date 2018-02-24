@@ -7,7 +7,6 @@ import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
 import outwatch.Handler
 import outwatch.dom._
-import outwatch.dom.dsl.input
 import outwatch.extras.redux.{StatefulComponent, StatefulEffectsComponent, Store, _}
 import outwatch.extras.router.{BaseUrl, RouterOps}
 import outwatch.extras.styles.Styles
@@ -58,7 +57,7 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
         ),
         div(
           textArea(S.textfield, S.material,
-            child <-- handler.map(_.log.mkString("\n"))
+            handler.map(_.log.mkString("\n"))
           )
         )
       )
@@ -211,7 +210,7 @@ object TodoModule extends StatefulEffectsComponent with
           button(S.button, S.material,
             onClick(Page.Log("from 'Log only'")) --> router, "Log only"
           ),
-          ul(children <-- todoViews)
+          ul(todoViews)
         )
       }
     }
@@ -256,7 +255,7 @@ object TodoComponent extends StatefulComponent {
         table(
           tbody(
             tr(
-              td("Last action: ", child <-- store.map(_.lastAction))
+              td("Last action: ", store.map(_.lastAction))
             ),
             tr(
               span("Add item 'show log' to test router as effect.")
@@ -285,11 +284,8 @@ object AppPages {
   sealed abstract class Page(val title: String)
 
   object Page {
-
     object Todo extends Page("Todo List")
-
     case class Log(message: String) extends Page("Log page")
-
   }
 
 }
@@ -308,7 +304,7 @@ object AppRouter extends RouterOps {
 
     builder
       .rules(
-        ("log" / remainingPath).caseClass[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
+        ("log" / remainingPath).mapTo[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
         "todo".const(Page.Todo) ~> TodoComponent(),
         "log".const(Unit) ~> Router.Replace(Page.Log("log only"))
       )
@@ -344,7 +340,7 @@ object BaseLayout {
     import outwatch.dom.dsl._
     div(
       h4("Todo"),
-      div(child <-- node)
+      div(node)
     )
   }
 }

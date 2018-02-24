@@ -78,20 +78,28 @@ trait Router[Page] {
       implicit def toVNodeFunc[P](f: => VNode): P => VNode = _ => f
 
       implicit class route[P <: Page](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
+
+        private val route = rf.route
+
         def ~>(f: => P => VNode): Rule = Rule(
-          p => rf.route.parse(p).map(p => Right(p)),
-          p => ct.unapply(p).map(rf.route.pathFor),
+          p => route.parse(p).map(p => Right(p)),
+          p => ct.unapply(p).map(route.pathFor),
           p => ct.unapply(p).map(f)
         )
       }
 
       implicit class toRedirect[P](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
+
+        private val route = rf.route
+
         def ~>(f: => Action): Rule = Rule(
-          p => rf.route.parse(p).map(p => Left(f)),
-          p => ct.unapply(p).map(rf.route.pathFor),
+          p => route.parse(p).map(_ => Left(f)),
+          p => ct.unapply(p).map(route.pathFor),
           p => None
         )
       }
+
+
 
       def rules(r: Rule*): Builder = copy(rules = r)
 
