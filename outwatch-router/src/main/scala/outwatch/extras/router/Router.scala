@@ -31,33 +31,30 @@ trait Router[Page] {
   class Config private (rules: Seq[Config.Rule], val notFound: Either[Action, VNode]) {
 
     @tailrec
-    private def findFirst[T, R](list: List[T => Option[R]])(arg: T): Option[R] = {
-      list match {
+    private def findFirst[T, X](arg: T, rules: List[Config.Rule], map: Config.Rule => T => Option[X]): Option[X] = {
+      rules match {
         case Nil => None
         case head :: tail =>
-          val res = head(arg)
-          if (res.isDefined) res else findFirst(tail)(arg)
+          val res = map(head)(arg)
+          if (res.isDefined) res else findFirst(arg, tail, map)
       }
     }
 
-    private def parse(path: Path): Option[Parsed] = findFirst(rules.map(_.parse).toList)(path)
 
-    private def path(page: Page): Option[Path] = findFirst(rules.map(_.path).toList)(page)
+    def pathForPage(page: Page): Option[Path] = findFirst(page, rules.toList, _.path)
 
-    private def target(page: Page): Option[VNode] = findFirst(rules.map(_.target).toList)(page)
+    def targetForPage(page: Page): Option[VNode] = findFirst(page, rules.toList, _.target)
+
+    def parsePath(path: Path): Option[Parsed] = findFirst(path, rules.toList, _.parse)
 
     def parseUrl(baseUrl: BaseUrl, absUrl: AbsUrl): Option[Parsed] = {
       val path = Path(absUrl.value.replaceFirst(baseUrl.value, ""))
-      val parsed = parse(path)
+      val parsed = parsePath(path)
       parsed
     }
 
-    def pageToUrl(baseUrl: BaseUrl, page: Page): AbsUrl = {
-      path(page).getOrElse(Path.root).abs(baseUrl)
-    }
-
-    def pageToNode(page: Page) : Option[VNode] = {
-      target(page)
+    def urlForPage(baseUrl: BaseUrl, page: Page): AbsUrl = {
+      pathForPage(page).getOrElse(Path.root).abs(baseUrl)
     }
   }
 
@@ -76,12 +73,13 @@ trait Router[Page] {
     private[Config] case class Builder private(rules: Seq[Rule]) extends PathParser {
 
       implicit def toVNodeFunc[P](f: => VNode): P => VNode = _ => f
+      implicit def toActionFunc[P](f: => Action): P => Action = _ => f
 
       implicit class route[P <: Page](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
 
         private val route = rf.route
 
-        def ~>(f: => P => VNode): Rule = Rule(
+        def ~>(f: P => VNode): Rule = Rule(
           p => route.parse(p).map(p => Right(p)),
           p => ct.unapply(p).map(route.pathFor),
           p => ct.unapply(p).map(f)
@@ -92,14 +90,12 @@ trait Router[Page] {
 
         private val route = rf.route
 
-        def ~>(f: => Action): Rule = Rule(
-          p => route.parse(p).map(_ => Left(f)),
+        def ~>(f: P => Action): Rule = Rule(
+          p => route.parse(p).map(p => Left(f(p))),
           p => ct.unapply(p).map(route.pathFor),
           p => None
         )
       }
-
-
 
       def rules(r: Rule*): Builder = copy(rules = r)
 
@@ -120,10 +116,10 @@ trait Router[Page] {
         case Right(page) =>
           page
         case Left(Replace(page)) =>
-          dom.window.history.replaceState("", "", config.pageToUrl(baseUrl, page).value)
+          dom.window.history.replaceState("", "", config.urlForPage(baseUrl, page).value)
           page
         case Left(Push(page)) =>
-          dom.window.history.pushState("", "", config.pageToUrl(baseUrl, page).value)
+          dom.window.history.pushState("", "", config.urlForPage(baseUrl, page).value)
           page
         case Left(Force(url)) =>
           dom.window.location.href = url.value
@@ -142,7 +138,7 @@ trait Router[Page] {
 
       def pageToNode(page: Page): Option[(Option[Page], VNode)] = {
         try {
-          config.pageToNode(page).map(node => Some(page) -> node)
+          config.targetForPage(page).map(node => Some(page) -> node)
         } catch {
           case NonFatal(e) =>
             dom.console.error(e.getMessage)
