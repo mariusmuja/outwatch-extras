@@ -306,7 +306,7 @@ object AppRouter extends RouterOps {
       .rules(
         ("log" / remainingPath).mapTo[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
         "todo".const(Page.Todo) ~> TodoComponent(),
-        "log".const(Unit) ~> Router.Replace(Page.Log("log only"))
+        ("loger" / int).tupled ~> { case (p, ) => Router.Replace(Page.Log(s"log only: $p")) }
       )
       .notFound(Router.Replace(Page.Todo))
   }
