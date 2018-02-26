@@ -70,10 +70,25 @@ trait Router[Page] {
       target: Page => Option[VNode]
     )
 
-    private[Config] case class Builder private(rules: Seq[Rule]) extends PathParser {
+
+    trait ActionRule { self: PathParser =>
+      implicit def toActionFunc[P](f: => Action): P => Action = _ => f
+
+      implicit class RouteAsAction[P](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
+        private val route = rf.route
+
+        def ~>(f: P => Action): Rule = Rule(
+          p => route.parse(p).map(p => Left(f(p))),
+          p => ct.unapply(p).map(route.pathFor),
+          p => None
+        )
+      }
+    }
+
+
+    trait VNodeRule extends ActionRule { self: PathParser =>
 
       implicit def toVNodeFunc[P](f: => VNode): P => VNode = _ => f
-      implicit def toActionFunc[P](f: => Action): P => Action = _ => f
 
       implicit class route[P <: Page](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
 
@@ -85,17 +100,9 @@ trait Router[Page] {
           p => ct.unapply(p).map(f)
         )
       }
+    }
 
-      implicit class toRedirect[P](rf: RouteFragment[P])(implicit ct: ClassTag[P]) {
-
-        private val route = rf.route
-
-        def ~>(f: P => Action): Rule = Rule(
-          p => route.parse(p).map(p => Left(f(p))),
-          p => ct.unapply(p).map(route.pathFor),
-          p => None
-        )
-      }
+    private[Config] case class Builder private(rules: Seq[Rule]) extends PathParser with VNodeRule {
 
       def rules(r: Rule*): Builder = copy(rules = r)
 
