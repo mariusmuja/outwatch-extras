@@ -291,6 +291,8 @@ object AppPages {
 }
 
 
+case class Hash(hash: String)
+
 
 object AppRouter extends RouterOps {
 
@@ -302,11 +304,14 @@ object AppRouter extends RouterOps {
   val config = Router.Config { builder =>
     import builder._
 
+    val snowflake = string("[a-zA-Z0-9]*")
+    def hash = snowflake.mapTo[Hash]
+
     builder
       .rules(
         ("log" / remainingPath).mapTo[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
         "todo".const(Page.Todo) ~> TodoComponent(),
-        ("loger" / int).tupled ~> { case (p, ) => Router.Replace(Page.Log(s"log only: $p")) }
+        ("loger" / hash).tupled ~> { p => Router.Replace(Page.Log(s"log only: ${p._1}")) }
       )
       .notFound(Router.Replace(Page.Todo))
   }

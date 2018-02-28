@@ -120,11 +120,14 @@ trait PathParser {
         )
     }
 
-    object Composition {
+    trait Composition_LowPrio { self: Composition.type =>
+      implicit def appendItem[L <: HList, H]: Aux[L, H, H :: L] = Composition[L, H, H :: L](_.tail, _.head, (l, h) => h :: l)
+    }
+
+    object Composition extends Composition_LowPrio{
 
       type Aux[A, B, O] = Composition[A, B] {type Out = O}
 
-      implicit def appendItem[L <: HList, H]: Aux[L, H, H :: L] = Composition[L, H, H :: L](_.tail, _.head, (l, h) => h :: l)
 
       implicit def appendHNil[A]: Aux[A, HNil, A] = Composition[A, HNil, A](identity, _ => HNil, (a, _) => a)
 
@@ -141,6 +144,17 @@ trait PathParser {
     val / : RouteFragment[HNil] = literal("/")
   }
 
+
+  implicit class RouteSimpleConversion[A](route: RouteFragment[A]){
+    def mapTo[B](implicit gen: Generic.Aux[B, A :: HNil]): RouteFragment[B] =
+      route.xmap(a => gen.from(a :: HNil))(b => gen.to(b).head)
+
+    def tupled: RouteFragment[Tuple1[A]] =
+      route.xmap(a => Tuple1(a))(_._1)
+
+    @deprecated("Use .mapTo[T] instead", "0.2.3")
+    def caseClass[B](implicit genB: Generic.Aux[B, A :: HNil]): RouteFragment[B] = mapTo[B]
+  }
 
   implicit class RouteConversion[A <: HList, R <: HList](route: RouteFragment[A])(
     implicit
