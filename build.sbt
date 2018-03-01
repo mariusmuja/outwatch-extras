@@ -1,10 +1,10 @@
 
 
 inThisBuild(Seq(
-  version := "0.2.4",
+  version := "0.2.5",
   organization := "io.github.mariusmuja",
   scalaVersion := crossScalaVersions.value.head,
-  crossScalaVersions := Seq("2.12.4", "2.11.11"),
+  crossScalaVersions := Seq("2.12.4", "2.11.12"),
   javacOptions in Compile ++= Seq(
     "-source", "1.7",
     "-target", "1.7"
@@ -38,7 +38,7 @@ inThisBuild(Seq(
 )
 
 
-val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-RC4")
+val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-RC5")
 
 val noPublish = Seq(
   publishArtifact := false,
@@ -101,7 +101,6 @@ lazy val router = project.in(file("outwatch-router"))
     libraryDependencies ++=
       outwatch.value ::
       "com.chuusai" %%% "shapeless" % "2.3.3" ::
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value ::
       Nil
   )
   .dependsOn(util)
