@@ -22,7 +22,12 @@ object Store {
     Handler.create[Action](initActions: _*).map { handler =>
 
       handler.transformSource { handler =>
-        val reducer: (State, Action) => State = (state, action) => state.evolve(action)
+        val reducer: (State, Action) => State = (state, action) => Try {
+          state.evolve(action)
+        }.recover { case NonFatal(e) =>
+          dom.console.error(e.toString)
+          state
+        }.get
 
         handler
           .scan(initialState)(reducer)
@@ -43,7 +48,12 @@ object Store {
     Handler.create[Action](initActions :_*).map { handler =>
       handler.transformSource { handler =>
 
-        val reducer: (State, Action) => State = (state, action) => state.evolve(action)
+        val reducer: (State, Action) => State = (state, action) => Try {
+          state.evolve(action)
+        }.recover { case NonFatal(e) =>
+          dom.console.error(e.toString)
+          state
+        }.get
 
         Observable.merge(handler, actionSource)
           .scan(initialState)(reducer)
@@ -67,7 +77,7 @@ object Store {
 
           val reducer: (State, Action) => State = (state, action) => Try {
             val se = state.evolve(action)
-            se.effects.subscribe(effectHandler.observer.onNext _)
+            se.effects.subscribe(e => effectHandler.observer.feed(e :: Nil))
             se.state
           }.recover { case NonFatal(e) =>
             dom.console.error(e.toString)
@@ -82,6 +92,7 @@ object Store {
       }
     }
   }
+
 
   def create[Action, Effect, State <: EvolvableStateWithEffects[Action, State, Effect]](
     initActions: Seq[Action],
@@ -101,7 +112,7 @@ object Store {
           val reducer: (State, Action) => State = (state, action) => Try {
             val se = state.evolve(action)
             effectHandlers.foreach(effectHandler =>
-              se.effects.subscribe(effectHandler.observer.onNext _)
+              se.effects.subscribe(e => effectHandler.observer.feed(e :: Nil))
             )
             se.state
           }.getOrElse(state)
