@@ -1,10 +1,10 @@
 
 
 inThisBuild(Seq(
-  version := "0.2.8",
+//  version := "0.2.9-SNAPSHOT",
   organization := "io.github.mariusmuja",
   scalaVersion := crossScalaVersions.value.head,
-  crossScalaVersions := Seq("2.12.4", "2.11.12"),
+  crossScalaVersions := Seq("2.12.6", "2.11.12"),
   javacOptions in Compile ++= Seq(
     "-source", "1.7",
     "-target", "1.7"
@@ -38,7 +38,9 @@ inThisBuild(Seq(
 )
 
 
-val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-RC8")
+//val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-2-SNAPSHOT")
+val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-1-SNAPSHOT")
+//val outwatch = Def.setting("io.github.outwatch" %%% "outwatch" % "0.11.1-SNAPSHOT")
 
 val noPublish = Seq(
   publishArtifact := false,
@@ -52,7 +54,7 @@ lazy val extras = project.in(file("."))
   )
   .aggregate(app, redux, styles, mdl, router, util)
   .dependsOn(redux, styles, mdl, router, util)
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 
 lazy val app = project.in(file("demo-spa"))
@@ -64,7 +66,7 @@ lazy val app = project.in(file("demo-spa"))
   )
   .settings(noPublish: _*)
   .dependsOn(redux, styles, mdl, router)
-  .enablePlugins(ScalaJSBundlerPlugin)
+  .enablePlugins(ScalaJSBundlerPlugin, GitVersioning)
 
 
 lazy val styles = project.in(file("outwatch-styles"))
@@ -75,7 +77,7 @@ lazy val styles = project.in(file("outwatch-styles"))
       "com.github.japgolly.scalacss" %%% "core" % "0.5.4" ::
       Nil
   )
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 lazy val util = project.in(file("outwatch-util"))
   .settings(
@@ -84,7 +86,7 @@ lazy val util = project.in(file("outwatch-util"))
       outwatch.value ::
       Nil
   )
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 lazy val mdl = project.in(file("outwatch-mdl"))
   .settings(
@@ -93,7 +95,7 @@ lazy val mdl = project.in(file("outwatch-mdl"))
       outwatch.value ::
       Nil
   )
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 lazy val router = project.in(file("outwatch-router"))
   .settings(
@@ -104,7 +106,7 @@ lazy val router = project.in(file("outwatch-router"))
       Nil
   )
   .dependsOn(util)
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 lazy val redux = project.in(file("outwatch-redux"))
   .settings(
@@ -114,4 +116,4 @@ lazy val redux = project.in(file("outwatch-redux"))
       Nil
   )
   .dependsOn(util)
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)

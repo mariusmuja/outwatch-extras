@@ -1,5 +1,5 @@
 npmDevDependencies in Compile ++= Seq(
-   "webpack-merge" -> "4.1.1"
+   "webpack-merge" -> "4.1.3"
 )
 
 
