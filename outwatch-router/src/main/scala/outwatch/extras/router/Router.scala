@@ -148,7 +148,7 @@ trait Router[Page] {
           config.targetForPage(page).map(node => Some(page) -> node)
         } catch {
           case NonFatal(e) =>
-            dom.console.error(e.getMessage)
+            dom.console.error(Option(e.getCause).map(_.getMessage).getOrElse[String](e.getMessage))
             Some((None, tags.div(styles.color.red, e.getMessage)))
         }
       }
