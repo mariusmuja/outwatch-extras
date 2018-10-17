@@ -33,12 +33,13 @@ inThisBuild(Seq(
     "-P:scalajs:sjsDefinedByDefault" ::
     Nil,
   licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html")),
+  resolvers += "jitpack" at "https://jitpack.io",
   publishArtifact in Test := false,
 )
 )
 
 
-val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-3-SNAPSHOT")
+val outwatch = Def.setting("com.github.mariusmuja" % "outwatch" % "40e00a138b" )
 //val outwatch = Def.setting("io.github.outwatch" %%% "outwatch" % "0.11.1-SNAPSHOT")
 
 val noPublish = Seq(
