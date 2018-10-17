@@ -1,8 +1,7 @@
 
-
 inThisBuild(Seq(
 //  version := "0.2.9-SNAPSHOT",
-  organization := "io.github.mariusmuja",
+  organization := "com.github.mariusmuja",
   scalaVersion := crossScalaVersions.value.head,
   crossScalaVersions := Seq("2.12.7", "2.11.12"),
   javacOptions in Compile ++= Seq(
