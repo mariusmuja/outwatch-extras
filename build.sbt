@@ -1,22 +1,45 @@
+
+
 inThisBuild(Seq(
-  organization := "com.github.mariusmuja",
-  version := "0.1.1-SNAPSHOT",
+//  version := "0.2.9-SNAPSHOT",
+  organization := "io.github.mariusmuja",
   scalaVersion := crossScalaVersions.value.head,
-  crossScalaVersions := Seq("2.12.4", "2.11.11"),
-  scalacOptions in Compile ++= Seq(
-    "-deprecation",
-    "-feature"
-  ),
+  crossScalaVersions := Seq("2.12.7", "2.11.12"),
   javacOptions in Compile ++= Seq(
     "-source", "1.7",
     "-target", "1.7"
   ),
+  scalacOptions += {
+    val local = baseDirectory.value.toURI
+    val remote = s"https://raw.githubusercontent.com/mariusmuja/outwatch-extras/${git.gitHeadCommit.value.get}/"
+    s"-P:scalajs:mapSourceURI:$local->$remote"
+  },
+  scalacOptions ++=
+    "-encoding" :: "UTF-8" ::
+    "-unchecked" ::
+    "-deprecation" ::
+    "-explaintypes" ::
+    "-feature" ::
+    "-language:_" ::
+    "-Xcheckinit" ::
+    "-Xfuture" ::
+    "-Xlint" ::
+    "-Ypartial-unification" ::
+    "-Yno-adapted-args" ::
+    "-Ywarn-infer-any" ::
+    "-Ywarn-value-discard" ::
+    "-Ywarn-nullary-override" ::
+    "-Ywarn-nullary-unit" ::
+    "-P:scalajs:sjsDefinedByDefault" ::
+    Nil,
   licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html")),
-  publishArtifact in Test := false
+  publishArtifact in Test := false,
 )
 )
 
-val outwatchVersion = "0.10.2"
+
+val outwatch = Def.setting("io.github.mariusmuja" %%% "outwatch" % "1.0.0-3-SNAPSHOT")
+//val outwatch = Def.setting("io.github.outwatch" %%% "outwatch" % "0.11.1-SNAPSHOT")
 
 val noPublish = Seq(
   publishArtifact := false,
@@ -24,61 +47,72 @@ val noPublish = Seq(
   publishLocal := {}
 )
 
-lazy val root = project.in(file("."))
-  .aggregate(app, redux, styles, mdl, router)
-  .settings(noPublish: _*)
+lazy val extras = project.in(file("."))
+  .settings(
+    name := "outwatch-extras"
+  )
+  .aggregate(app, redux, styles, mdl, router, util)
+  .dependsOn(redux, styles, mdl, router, util)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 
 lazy val app = project.in(file("demo-spa"))
   .settings(
     name := "demo-spa",
-    jsEnv := PhantomJSEnv().value,
     useYarn := true,
     webpackBundlingMode := BundlingMode.LibraryAndApplication(),
     scalaJSUseMainModuleInitializer := true
   )
   .settings(noPublish: _*)
   .dependsOn(redux, styles, mdl, router)
-  .enablePlugins(ScalaJSBundlerPlugin)
+  .enablePlugins(ScalaJSBundlerPlugin, GitVersioning)
 
 
 lazy val styles = project.in(file("outwatch-styles"))
   .settings(
     name := "outwatch-styles",
     libraryDependencies ++=
-      "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
-        "com.github.japgolly.scalacss" %%% "core" % "0.5.3" ::
-        Nil
+      outwatch.value ::
+      "com.github.japgolly.scalacss" %%% "core" % "0.5.4" ::
+      Nil
   )
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
+lazy val util = project.in(file("outwatch-util"))
+  .settings(
+    name := "outwatch-util",
+    libraryDependencies ++=
+      outwatch.value ::
+      Nil
+  )
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 lazy val mdl = project.in(file("outwatch-mdl"))
   .settings(
     name := "outwatch-mdl",
     libraryDependencies ++=
-      "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
-        Nil
+      outwatch.value ::
+      Nil
   )
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 lazy val router = project.in(file("outwatch-router"))
   .settings(
     name := "outwatch-router",
     libraryDependencies ++=
-      "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
-        "org.scala-lang" % "scala-reflect" % scalaVersion.value ::
-        Nil
+      outwatch.value ::
+      "com.chuusai" %%% "shapeless" % "2.3.3" ::
+      Nil
   )
-  .enablePlugins(ScalaJSPlugin)
-
+  .dependsOn(util)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)
 
 lazy val redux = project.in(file("outwatch-redux"))
   .settings(
     name := "outwatch-redux",
     libraryDependencies ++=
-      "io.github.outwatch" %%% "outwatch" % outwatchVersion ::
-        Nil
+      outwatch.value ::
+      Nil
   )
-  .enablePlugins(ScalaJSPlugin)
-
+  .dependsOn(util)
+  .enablePlugins(ScalaJSPlugin, GitVersioning)

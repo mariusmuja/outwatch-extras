@@ -1,6 +1,6 @@
 package demo.styles
 
-import outwatch.mdl.Mdl
+import outwatch.extras.mdl.Mdl
 
 import scalacss.defaults.Exports._
 import scalacss.internal.Compose
@@ -9,7 +9,6 @@ import scalacss.internal.Compose
   * Created by marius on 23/05/17.
   */
 trait MdlStyles extends Mdl { self: StyleSheet.Inline =>
-
 
   object mdl {
     import dsl._
