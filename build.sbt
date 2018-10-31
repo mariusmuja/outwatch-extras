@@ -38,7 +38,7 @@ inThisBuild(Seq(
 )
 
 
-val outwatch = Def.setting("com.github.mariusmuja" % "outwatch" % "40e00a138b" )
+val outwatch = Def.setting("com.github.mariusmuja" % "outwatch" % "2a2ef2c371" )
 //val outwatch = Def.setting("io.github.outwatch" %%% "outwatch" % "0.11.1-SNAPSHOT")
 
 val noPublish = Seq(
