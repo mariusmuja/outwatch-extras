@@ -1,7 +1,6 @@
 package outwatch.extras.styles
 
-import cats.effect.IO
-import outwatch.dom.Attribute
+import outwatch.dom.{Attribute, IO}
 import outwatch.dom.dsl.attributes
 
 import scala.language.implicitConversions

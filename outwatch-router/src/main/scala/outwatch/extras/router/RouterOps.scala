@@ -1,8 +1,8 @@
 package outwatch.extras.router
 
-import cats.effect.IO
 import monix.reactive.Observable
 import outwatch.Pipe
+import outwatch.dom.IO
 import outwatch.extras.>-->
 
 

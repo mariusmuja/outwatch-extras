@@ -1,13 +1,13 @@
 package outwatch.extras.redux
 
-import cats.effect.IO
 import monix.execution.Cancelable.IsDummy
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.cancelables.CompositeCancelable
-import monix.execution.misc.NonFatal
 import org.scalajs.dom
-import outwatch.dom.{Handler, Observable}
+import outwatch.dom.{Handler, IO, Observable}
 import outwatch.extras.>-->
+
+import scala.util.control.NonFatal
 
 /**
   * Created by marius on 11/06/17.
@@ -50,7 +50,7 @@ object Store {
     Handler.create[Action](initActions :_*).map { handler =>
       handler.transformSource { handler =>
         val reducer = stateReducer[Action, State]
-        Observable.merge(handler, actionSource)
+        Observable(handler, actionSource).merge
           .scan(initialState)(reducer)
           .behavior(initialState).refCount
       }
@@ -82,10 +82,10 @@ object Store {
               state
           }
 
-          Observable.merge(handler, effectHandler)
+          Observable(handler, effectHandler).merge
             .scan(initialState)(reducer)
             .behavior(initialState).refCount
-            .doOnSubscriptionCancel(() => sub.cancel())
+            .doOnSubscriptionCancelF(() => sub.cancel())
         }
       }
     }
@@ -117,10 +117,10 @@ object Store {
               state
           }
 
-          Observable.merge(handler, actionSource, effectHandler)
+          Observable(handler, actionSource, effectHandler).merge
             .scan(initialState)(reducer)
             .behavior(initialState).refCount
-            .doOnSubscriptionCancel(() => sub.cancel())
+            .doOnSubscriptionCancelF(() => sub.cancel())
         }
       }
     }
@@ -157,10 +157,10 @@ object Store {
               state
           }
 
-          Observable.merge(actionSource :: effectHandlers: _*)
+          Observable(actionSource :: effectHandlers: _*).merge
             .scan(initialState)(reducer)
             .behavior(initialState).refCount
-            .doOnSubscriptionCancel(() => sub.cancel())
+            .doOnSubscriptionCancelF(() => sub.cancel())
         }
       }
     }

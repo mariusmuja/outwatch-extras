@@ -1,17 +1,16 @@
 package outwatch.extras.router
 
-import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
-import monix.execution.misc.NonFatal
 import org.scalajs.dom
 import outwatch.dom.dsl.{styles, tags}
 import outwatch.dom.helpers.STRef
-import outwatch.dom.{Handler, Observable, VNode, dsl}
+import outwatch.dom.{Handler, IO, Observable, VNode, dsl}
 import outwatch.extras.>-->
 
 import scala.annotation.tailrec
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 /**
   * Created by marius on 26/06/17.
@@ -137,10 +136,11 @@ trait Router[Page] {
         .startWith(Seq(()))
         .map(_ => config.parseUrl(baseUrl, AbsUrl.fromWindow))
 
-      val pageChanged: Observable[Option[Page]] = Observable.merge(
+      val pageChanged: Observable[Option[Page]] = Observable(
         popStateObservable,
         pageHandler.map(r => Some(Left(r)))
       )
+        .merge
         .map(_.map(parsedToPageWithEffects))
 
       def pageToNode(page: Page): Option[(Option[Page], VNode)] = {

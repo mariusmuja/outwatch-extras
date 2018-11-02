@@ -1,8 +1,7 @@
 package outwatch.extras.redux
 
-import cats.effect.IO
 import monix.execution.Scheduler.Implicits.global
-import outwatch.dom.{Handler, Observable}
+import outwatch.dom.{Handler, IO, Observable}
 import outwatch.extras.>-->
 
 trait EffectLike {

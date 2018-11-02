@@ -1,10 +1,10 @@
 package outwatch.extras.data
 
-import monix.execution.misc.NonFatal
 import monix.reactive.Observable
 import outwatch.dom.VNode
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 
 trait PotErrorRender {

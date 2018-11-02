@@ -1,6 +1,5 @@
 package demo
 
-import cats.effect.IO
 import demo.styles._
 import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
@@ -16,6 +15,7 @@ import scala.concurrent.duration._
 import scala.scalajs.js.Date
 import scala.util.Random
 import scalacss.DevDefaults._
+import monix.reactive.Observable
 
 object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
@@ -363,6 +363,7 @@ object DemoApp {
       dom.document.title = "Not found"
   }
 
+
   def main(args: Array[String]): Unit = {
 
     AppRouter.create.flatMap { router =>
@@ -375,6 +376,7 @@ object DemoApp {
 
       OutWatch.renderInto("#app", BaseLayout(router.map(_.node)))
     }.unsafeRunSync()
+
   }
 
 
