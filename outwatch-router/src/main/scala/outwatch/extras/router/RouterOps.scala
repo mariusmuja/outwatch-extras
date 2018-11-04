@@ -31,19 +31,3 @@ trait RouterOps extends RouterOpsBase {
     router.transformPipe[E, A](_.collect(f))(_ => Observable.empty)
   }
 }
-
-
-/**
-  * Non-referential transparent RouterOps
-  */
-trait RouterOpsUnsafe extends RouterOpsBase {
-
-  lazy val router: Router.Action >--> Router.State = Router.create(config, baseUrl).unsafeRunSync()
-
-  lazy val push: Pipe[Page, Router.State] = router.mapSink[Page](Router.Push)
-  lazy val replace: Pipe[Page, Router.State] = router.mapSink[Page](Router.Replace)
-  lazy val force: Pipe[AbsUrl, Router.State] = router.mapSink[AbsUrl](Router.Force)
-
-  def asEffect[E, A](f: PartialFunction[E, Router.Action]): E >--> A =
-    router.transformPipe[E, A](_.collect(f))(_ => Observable.empty)
-}

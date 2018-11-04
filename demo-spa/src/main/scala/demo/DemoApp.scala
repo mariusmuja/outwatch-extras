@@ -375,7 +375,7 @@ object DemoApp {
       Styles.subscribe(_.addToDocument())
 
       OutWatch.renderInto("#app", BaseLayout(router.map(_.node)))
-    }.unsafeRunSync()
+    }.runAsyncAndForget
 
   }
 
