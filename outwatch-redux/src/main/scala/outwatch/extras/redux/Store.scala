@@ -4,7 +4,8 @@ import monix.execution.Cancelable.IsDummy
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.cancelables.CompositeCancelable
 import org.scalajs.dom
-import outwatch.dom.{Handler, IO, Observable}
+import outwatch.Handler
+import outwatch.dom.{IO, Observable}
 import outwatch.extras.>-->
 
 import scala.util.control.NonFatal
