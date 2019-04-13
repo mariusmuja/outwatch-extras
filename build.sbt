@@ -3,7 +3,7 @@ inThisBuild(Seq(
   version := "0.4.0-"+git.gitHeadCommit.value.get.take(8),
   organization := "com.github.mariusmuja",
   scalaVersion := crossScalaVersions.value.head,
-  crossScalaVersions := Seq("2.12.7", "2.11.12"),
+  crossScalaVersions := Seq("2.12.8", "2.11.12"),
   javacOptions in Compile ++= Seq(
     "-source", "1.7",
     "-target", "1.7"
@@ -38,7 +38,7 @@ inThisBuild(Seq(
 )
 
 
-val outwatch = Def.setting("com.github.mariusmuja" %%% "outwatch" % "1.0.0-RC1-9a8316f6" )
+val outwatch = Def.setting("com.github.mariusmuja" %%% "outwatch" % "1.0.0-RC1-a166f659" )
 //val outwatch = Def.setting("io.github.outwatch" %%% "outwatch" % "0.11.1-SNAPSHOT")
 
 val noPublish = Seq(

@@ -51,3 +51,12 @@ trait StatefulEffectsComponent {
   protected type ComponentState = EvolvableStateWithEffects[Action, State, Effect]
   protected type State <: ComponentState
 }
+
+//trait StateAction[State] {
+//  type Action
+//}
+//
+//trait EvolvableState2[State] {
+//  def evolve[Action: StateAction](a: Action): this.type
+//}
+

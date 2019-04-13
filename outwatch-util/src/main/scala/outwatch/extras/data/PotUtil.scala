@@ -1,31 +1,31 @@
 package outwatch.extras.data
 
 import monix.reactive.Observable
-import outwatch.dom.VNode
+import outwatch.all.VDomModifier
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
 
 trait PotErrorRender {
-  def render(e: Throwable): VNode
+  def render(e: Throwable): VDomModifier
 }
 
 trait PotPendingRender {
-  def render(startTime: Long): VNode
+  def render(startTime: Long): VDomModifier
 }
 
 trait PotPendingStaleRender {
-  def render(vnode: VNode, startTime: Long): VNode
+  def render(vnode: VDomModifier, startTime: Long): VDomModifier
 }
 object PotPendingStaleRender {
   implicit object default extends PotPendingStaleRender {
-    def render(vnode: VNode, startTime: Long): VNode  = vnode
+    def render(vnode: VDomModifier, startTime: Long): VDomModifier  = vnode
   }
 }
 
 trait PotEmptyRender {
-  def render: VNode
+  def render: VDomModifier
 }
 
 
