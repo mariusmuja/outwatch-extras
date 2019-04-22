@@ -1,8 +1,12 @@
 package outwatch.extras
 
-import cats.Eq
+import cats.{Eq, MonadError}
+import cats.syntax.all._
 import outwatch.AsVDomModifier
 import outwatch.dom.VDomModifier
+
+import scala.language.higherKinds
+import scala.util.control.NonFatal
 
 package object data {
 
@@ -28,6 +32,15 @@ package object data {
 
   implicit def potEq[T]: Eq[Pot[T]] = Eq.instance { (x, y) =>
     x.state == y.state && x.toOption == y.toOption
+  }
+
+
+  type MonadThwableError[F[_]] = MonadError[F, Throwable]
+
+  implicit class MonadErrorRecoverPot[T, F[_]: MonadThwableError](private val f: F[T]) {
+    def recoverPot: F[Pot[T]] = f.map[Pot[T]](Ready.apply).recover { case NonFatal(e) => Failed(e) }
+
+    def recoverPot[B](g: Pot[T] => B): F[B] = f.map[B](x => g(Ready(x))).recover { case NonFatal(e) => g(Failed(e)) }
   }
 
 
