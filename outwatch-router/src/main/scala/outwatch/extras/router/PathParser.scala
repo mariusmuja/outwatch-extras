@@ -151,9 +151,6 @@ trait PathParser {
 
     def tupled: RouteFragment[Tuple1[A]] =
       route.xmap(a => Tuple1(a))(_._1)
-
-    @deprecated("Use .mapTo[T] instead", "0.2.3")
-    def caseClass[B](implicit genB: Generic.Aux[B, A :: HNil]): RouteFragment[B] = mapTo[B]
   }
 
   implicit class RouteConversion[A <: HList, R <: HList](route: RouteFragment[A])(
@@ -166,9 +163,6 @@ trait PathParser {
 
     def tupled[T](implicit tupler: Tupler.Aux[R, T], gen: Generic.Aux[T, R]): RouteFragment[T] =
       route.xmap(a => tupler(reverse(a)))(b => reverse2(gen.to(b)))
-
-    @deprecated("Use .mapTo[T] instead", "0.2.3")
-    def caseClass[B](implicit genB: Generic.Aux[B, R]): RouteFragment[B] = mapTo[B]
   }
 
 

@@ -311,7 +311,7 @@ object AppRouter extends RouterOps {
       .rules(
         ("log" / remainingPath).mapTo[Page.Log] ~> { case Page.Log(message) => Logger(Logger.Init("Message: " + message)) },
         "todo".const(Page.Todo) ~> TodoComponent(),
-        ("loger" / hash).tupled ~> { case (Hash(p),) => Router.Replace(Page.Log(s"log only: $p")) }
+        ("loger" / hash).tupled ~> { case Tuple1(Hash(p)) => Router.Replace(Page.Log(s"log only: $p")) }
       )
       .notFound(Router.Replace(Page.Todo))
   }
