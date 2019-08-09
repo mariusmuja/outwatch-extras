@@ -356,11 +356,13 @@ object DemoApp {
   import AppRouter._
   import outwatch.dom.OutWatch
 
-  val updatePageTitle : Option[Page] => Unit = {
-    case Some(p) =>
-      dom.document.title = p.title
-    case None =>
-      dom.document.title = "Not found"
+  def updatePageTitle(p: Option[Page]): Unit = {
+    p match {
+      case Some(p) =>
+        dom.document.title = p.title
+      case None =>
+        dom.document.title = "Not found"
+    }
   }
 
 

@@ -3,7 +3,7 @@ inThisBuild(Seq(
   version := "0.4.0-"+git.gitHeadCommit.value.get.take(8),
   organization := "com.github.mariusmuja",
   scalaVersion := crossScalaVersions.value.head,
-  crossScalaVersions := Seq("2.12.8", "2.11.12"),
+  crossScalaVersions := Seq("2.12.9", "2.11.12"),
   javacOptions in Compile ++= Seq(
     "-source", "1.7",
     "-target", "1.7"
