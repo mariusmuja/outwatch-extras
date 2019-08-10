@@ -72,7 +72,7 @@ object Store {
           val reducer: (State, Action) => State = (state, action) => try {
             val se = state.evolve(action)
             val cancelable = se.effects.subscribe(
-              e => effectHandler.observer.feed(e :: Nil),
+              e => effectHandler.feed(e :: Nil),
               e => dom.console.error(e.getMessage) // just log the error, don't push it into the handler's observable, because it would stop the scan "loop"
             )
             if (!cancelable.isInstanceOf[IsDummy]) sub += cancelable
@@ -107,7 +107,7 @@ object Store {
           val reducer: (State, Action) => State = (state, action) => try {
             val se = state.evolve(action)
             val cancelable = se.effects.subscribe(
-              e => effectHandler.observer.feed(e :: Nil),
+              e => effectHandler.feed(e :: Nil),
               e => dom.console.error(e.getMessage)
             )
             if (!cancelable.isInstanceOf[IsDummy]) sub += cancelable
@@ -146,7 +146,7 @@ object Store {
             val se = state.evolve(action)
             effectHandlers.foreach { effectHandler =>
               val cancelable = se.effects.subscribe(
-                e => effectHandler.observer.feed(e :: Nil),
+                e => effectHandler.feed(e :: Nil),
                 e => dom.console.error(e.getMessage)
               )
               if (!cancelable.isInstanceOf[IsDummy]) sub += cancelable
