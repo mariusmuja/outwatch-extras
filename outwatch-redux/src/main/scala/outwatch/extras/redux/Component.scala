@@ -10,15 +10,18 @@ import scala.language.implicitConversions
   * Created by marius on 23/05/17.
   */
 
-trait EvolvableState[Action, State] {
-  def evolve : Action => State
+trait EvolvableState[Action, State] { self: State =>
+  def evolve: Action => State
 }
 
-trait EvolvableStateWithEffects[Action, State, Effect] { self: State =>
+trait EvolvableStateWithEffects[Action, State, Effect] {
+  self: State =>
 
-  case class StateWithEffects(state: State, effects: Observable[Effect])
+  case class StateWithEffects(state: State, effects: Observable[Effect]) {
+    def tupled: (State, Observable[Effect]) = (state, effects)
+  }
 
-  def evolve : Action => StateWithEffects
+  def evolve: Action => StateWithEffects
 
   protected implicit def noEffect(state: State): StateWithEffects = StateWithEffects(state, Observable.empty)
 
