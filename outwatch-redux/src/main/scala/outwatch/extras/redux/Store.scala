@@ -1,5 +1,6 @@
 package outwatch.extras.redux
 
+import monix.eval.TaskLike
 import monix.execution.Cancelable
 import monix.execution.cancelables.CompositeCancelable
 import org.scalajs.dom
@@ -7,12 +8,14 @@ import outwatch.Handler
 import outwatch.dom.{IO, Observable}
 import outwatch.extras.>-->
 
-import scala.language.implicitConversions
+import scala.language.{higherKinds, implicitConversions}
 import scala.util.control.NonFatal
 
 /**
   * Created by marius on 11/06/17.
   */
+
+
 
 trait StateReducer[Action, State] {
   def reduce(self: State, action: Action): State
@@ -22,7 +25,25 @@ object StateReducer {
 
   implicit def funcReducer[A, S](reducer: (S, A) => S): StateReducer[A, S] = (state: S, action: A) => reducer(state, action)
 
+  @deprecated("", "")
   implicit def evolvableStateReducer[A, S <: EvolvableState[A, S]]: StateReducer[A, S] = (state: S, action: A) => state.evolve(action)
+}
+
+
+case class StateWithEffects[State, Effect](state: State, effects: Observable[Effect]) {
+  def tupled: (State, Observable[Effect]) = (state, effects)
+}
+
+
+
+object StateWithEffects {
+  implicit def noEffect[S, E](state: S): StateWithEffects[S, E] = StateWithEffects(state, Observable.empty)
+
+  implicit def oneEffect[S, E](se : (S, E)): StateWithEffects[S, E] = StateWithEffects(se._1, Observable.pure(se._2))
+
+  implicit def oneFutureEffect[F[_]: TaskLike, S, E](se : (S, F[E])): StateWithEffects[S, E] = StateWithEffects(se._1, Observable.fromTaskLike(se._2))
+
+  implicit def fromTuple[S, E](se : (S, Observable[E])): StateWithEffects[S, E] = StateWithEffects(se._1, se._2)
 }
 
 
@@ -33,6 +54,7 @@ trait StateEffectsReducer[Action, State, Effect] {
 object StateEffectsReducer {
   implicit def funcReducer[A, S, E](reducer: (S, A) => (S, Observable[E])): StateEffectsReducer[A, S, E] = (state: S, action: A) => reducer(state, action)
 
+  @deprecated("", "")
   implicit def evolvableStateReducer[A, E, S <: EvolvableStateWithEffects[A, S, E]]: StateEffectsReducer[A, S, E] = (state: S, action: A) => state.evolve(action).tupled
 }
 
@@ -84,7 +106,7 @@ object Store {
   }
 
 
-  
+
   def create[Action, Effect, State](
     initActions: Seq[Action],
     initialState: State,

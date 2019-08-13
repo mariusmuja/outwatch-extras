@@ -1,6 +1,5 @@
 package outwatch.extras.redux
 
-import monix.execution.Scheduler.Implicits.global
 import outwatch.Handler
 import outwatch.dom.{IO, Observable}
 import outwatch.extras.>-->
@@ -13,16 +12,22 @@ trait EffectLike {
 }
 
 trait EffectsOps { self: EffectLike =>
-  val switch: IO[Effect >--> Result] = Handler.create[Effect].map { handler =>
-    handler.transformSource(_.switchMap(effects).share)
+  val switch: IO[Effect >--> Result] = IO.deferAction { implicit s =>
+    Handler.create[Effect].map { handler =>
+      handler.transformSource(_.switchMap(effects).share)
+    }
   }
 
-  val merge: IO[Effect >--> Result] = Handler.create[Effect].map { handler =>
-    handler.transformSource(_.mergeMap(effects).share)
+  val merge: IO[Effect >--> Result] = IO.deferAction { implicit s =>
+    Handler.create[Effect].map { handler =>
+      handler.transformSource(_.mergeMap(effects).share)
+    }
   }
 
-  val concat: IO[Effect >--> Result] = Handler.create[Effect].map { handler =>
-    handler.transformSource(_.concatMap(effects).share)
+  val concat: IO[Effect >--> Result] = IO.deferAction { implicit s =>
+    Handler.create[Effect].map { handler =>
+      handler.transformSource(_.concatMap(effects).share)
+    }
   }
 
 
@@ -46,9 +51,13 @@ trait EffectsOps { self: EffectLike =>
     concat.map(_.collectSource(g))
 }
 
-trait EffectsHandler extends EffectLike with EffectsOps
+trait Effects extends EffectLike with EffectsOps
 
-trait Effects[E, ER] extends EffectsHandler {
-  type Effect = E
-  type Result = ER
+object Effects {
+
+  type Aux[E, ER] = Effects {
+    type Effect = E
+    type Result = ER
+  }
 }
+

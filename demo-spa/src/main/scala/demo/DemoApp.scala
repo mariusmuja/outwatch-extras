@@ -3,21 +3,21 @@ package demo
 import demo.styles._
 import monix.execution.Ack.Continue
 import monix.execution.Scheduler.Implicits.global
+import monix.reactive.Observable
 import org.scalajs.dom
 import outwatch.Handler
 import outwatch.dom._
-import outwatch.extras.redux.{StatefulComponent, StatefulEffectsComponent, Store, _}
+import outwatch.extras.redux.{Effects, StateEffectsReducer, StateReducer, StateWithEffects, Store}
 import outwatch.extras.router.{BaseUrl, RouterOps}
 import outwatch.extras.styles.Styles
 import outwatch.extras.{<--<, >-->}
+import scalacss.DevDefaults._
 
 import scala.concurrent.duration._
 import scala.scalajs.js.Date
 import scala.util.Random
-import scalacss.DevDefaults._
-import monix.reactive.Observable
 
-object Logger extends StatefulEffectsComponent with LogAreaStyle {
+object Logger extends LogAreaStyle {
 
   sealed trait Action
   case class Init(message: String) extends Action
@@ -30,9 +30,9 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
 
   case class State(
     log: Seq[String] = Seq("Log:")
-  ) extends ComponentState {
+  ) {
 
-    val evolve = {
+    val evolve : Action => StateWithEffects[State, Effect] = {
       case InitEffect(message) =>
         this -> Console.Effect.Log(message)
       case Init(message) =>
@@ -41,6 +41,10 @@ object Logger extends StatefulEffectsComponent with LogAreaStyle {
         dom.console.log(s"Log >>>> $line")
         copy(log :+ s"$now : $line")
     }
+  }
+
+  object State {
+    implicit val ev: StateEffectsReducer[Action, State, Effect] = (s, a) => (s evolve a).tupled
   }
 
   def view(handler: State <--< Action)(implicit S: Style): VNode = {
@@ -122,8 +126,7 @@ object TextField extends TextFieldStyle {
 }
 
 
-object TodoModule extends StatefulEffectsComponent with
-                          TodoModuleStyle {
+object TodoModule extends TodoModuleStyle {
 
   sealed trait Action
   case class AddTodo(value: String) extends Action
@@ -140,17 +143,23 @@ object TodoModule extends StatefulEffectsComponent with
 
   case class Todo(id: Int, value: String)
 
-  case class State(todos: Seq[Todo] = Seq.empty) extends ComponentState { self =>
-    val evolve = {
-      case add @ AddTodo(value) =>
+  case class State(
+    todos: Seq[Todo] = Seq.empty
+  ) { self =>
+    val evolve: Action => StateWithEffects[State, Effect] = {
+      case AddTodo(value) =>
         if (value == "show log") {
           self -> Effect.GoTo(Page.Log("Log as effect"))
         } else
         copy(todos = todos :+ Todo(newID, value))
 
-      case remove @ RemoveTodo(todo) =>
+      case RemoveTodo(todo) =>
         copy(todos = todos.filter(_.id != todo.id))
     }
+  }
+
+  object State {
+    implicit val ev: StateEffectsReducer[Action, State, Effect] = (s, a) => (s evolve a).tupled
   }
 
   import outwatch.dom.dsl.styles._
@@ -195,8 +204,8 @@ object TodoModule extends StatefulEffectsComponent with
       case RemoveTodo(todo) => Logger.LogAction(s"Remove ${todo.value}")
     }
     val parentSink = parent.redirectMap[Action] {
-      case AddTodo(value) => TodoComponent.AddTodo(value)
-      case RemoveTodo(todo) => TodoComponent.RemoveTodo(todo.value)
+      case AddTodo(value) => TodoComponent.Action.AddTodo(value)
+      case RemoveTodo(todo) => TodoComponent.Action.RemoveTodo(todo.value)
     }
 
     Handler.create[Action].flatMap { actions =>
@@ -228,20 +237,24 @@ object TodoModule extends StatefulEffectsComponent with
   }
 }
 
-object TodoComponent extends StatefulComponent {
+object TodoComponent {
 
   sealed trait Action
-  case class AddTodo(value: String) extends Action
-  case class RemoveTodo(value: String) extends Action
+  object Action {
+    case class AddTodo(value: String) extends Action
+    case class RemoveTodo(value: String) extends Action
+  }
 
   case class State(
     lastAction: String = "None"
-  ) extends ComponentState {
-
-    val evolve = {
-      case AddTodo(value) => copy(lastAction = s"Add $value")
-      case RemoveTodo(value) => copy(lastAction = s"Remove $value")
+  ) {
+    val evolve: Action => State = {
+      case Action.AddTodo(value) => copy(lastAction = s"Add $value")
+      case Action.RemoveTodo(value) => copy(lastAction = s"Remove $value")
     }
+  }
+  object State {
+    implicit val ev: StateReducer[Action, State] = _ evolve _
   }
 
   def view(store: Action >--> State): VNode = {
@@ -319,7 +332,7 @@ object AppRouter extends RouterOps {
 }
 
 
-object Console extends EffectsHandler {
+object Console extends Effects {
 
   sealed trait Effect
   object Effect {
