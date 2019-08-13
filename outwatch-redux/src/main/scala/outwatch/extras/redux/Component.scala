@@ -4,13 +4,13 @@ package outwatch.extras.redux
   * Created by marius on 23/05/17.
   */
 
-@deprecated
+@deprecated("Use StateReducer typeclass", "")
 trait EvolvableState[Action, State] { self: State =>
   def evolve: Action => State
 }
 
 
-@deprecated
+@deprecated("Use StateEffectsReducer typeclass", "")
 trait EvolvableStateWithEffects[Action, State, Effect] {
   self: State =>
 
@@ -19,8 +19,7 @@ trait EvolvableStateWithEffects[Action, State, Effect] {
 }
 
 
-
-@deprecated
+@deprecated("Use StateReducer typeclass", "")
 trait StatefulComponent {
   type Action
 
@@ -28,7 +27,7 @@ trait StatefulComponent {
   protected type State <: ComponentState
 }
 
-@deprecated
+@deprecated("Use StateEffectsReducer typeclass", "")
 trait StatefulEffectsComponent {
   type Action
   type Effect

@@ -67,19 +67,10 @@ object Store {
     create(Seq.empty, initialState)(r)
   }
 
-
-  def create[Action, State](
-    initActions: Seq[Action],
-    initialState: State
-  )(implicit r: StateReducer[Action, State]): IO[Action >--> State] = {
-    create(initActions, initialState, Observable.empty)(r)
-  }
-
-
   def create[Action, State](
     initActions: Seq[Action],
     initialState: State,
-    actionSource: Observable[Action]
+    actionSource: Observable[Action] = Observable.empty,
   )(implicit r: StateReducer[Action, State]): IO[Action >--> State] = {
 
     IO.deferAction { implicit scheduler =>
@@ -92,7 +83,7 @@ object Store {
               dom.console.error(e.getMessage)
               state
           }
-          val actions = if (actionSource != Observable.empty) {
+          val actions = if (actionSource == Observable.empty) {
             handler
           } else {
             Observable(handler, actionSource).merge
