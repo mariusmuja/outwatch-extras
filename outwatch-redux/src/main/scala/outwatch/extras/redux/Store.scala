@@ -97,12 +97,20 @@ object Store {
   }
 
 
+  def create[Action, Effect, State](
+    initActions: Seq[Action],
+    initialState: State,
+    effects: IO[Effect >--> Action]
+  )(implicit r: StateEffectsReducer[Action, State, Effect]): IO[Action >--> State] = {
+    create(initActions, initialState, effects, Observable.empty)
+  }
+
 
   def create[Action, Effect, State](
     initActions: Seq[Action],
     initialState: State,
     effects: IO[Effect >--> Action],
-    actionSource: Observable[Action] = Observable.empty
+    actionSource: Observable[Action]
   )(implicit r: StateEffectsReducer[Action, State, Effect]): IO[Action >--> State] = {
 
     IO.deferAction { implicit scheduler =>
@@ -138,6 +146,7 @@ object Store {
       }
     }
   }
+
 
   def create[Action, Effect, State](
     initActions: Seq[Action],
@@ -180,12 +189,15 @@ object Store {
     }
   }
 
+
   def create[Action, Effect, State](
     initActions: Seq[Action],
     initialState: State,
     effects1: IO[Effect >--> Action],
     effects2: IO[Effect >--> Action],
     effects: IO[Effect >--> Action]*
-  )(implicit r: StateEffectsReducer[Action, State, Effect]): IO[Action >--> State] = create(initActions, initialState, effects1 :: effects2 :: effects.toList)
+  )(implicit r: StateEffectsReducer[Action, State, Effect]): IO[Action >--> State] = {
+    create(initActions, initialState, effects1 :: effects2 :: effects.toList)
+  }
 
 }
