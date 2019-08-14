@@ -15,18 +15,23 @@ import scala.util.control.NonFatal
   * Created by marius on 11/06/17.
   */
 
+trait EvolvableState[Action, State] { self: State =>
+  def evolve: Action => State
+}
 
 
-trait StateReducer[Action, State] {
+trait Reducer[Action, State] {
   def reduce(self: State, action: Action): State
 }
 
-object StateReducer {
+object Reducer {
 
-  implicit def funcReducer[A, S](reducer: (S, A) => S): StateReducer[A, S] = (state: S, action: A) => reducer(state, action)
+//  implicit def funcReducer[A, S](reducer: (S, A) => S): StateReducer[A, S] = (state: S, action: A) => reducer(state, action)
 
-  @deprecated("", "")
-  implicit def evolvableStateReducer[A, S <: EvolvableState[A, S]]: StateReducer[A, S] = (state: S, action: A) => state.evolve(action)
+  implicit def evolvableStateReducer[A, S <: EvolvableState[A, S]]: Reducer[A, S] = (state: S, action: A) => state.evolve(action)
+
+  def apply[A, S](f: (S, A) => S): Reducer[A, S] = (s, a) => f(s, a)
+
 }
 
 
@@ -47,15 +52,35 @@ object StateWithEffects {
 }
 
 
-trait StateEffectsReducer[Action, State, Effect] {
+
+trait EvolvableStateWithEffects[Action, State, Effect] { self: State =>
+  def evolve: Action => StateWithEffects[State, Effect]
+
+  protected implicit def oneEffect(e : Effect): StateWithEffects[State, Effect] = {
+    StateWithEffects(self, Observable.pure(e))
+  }
+
+  protected implicit def taskEffect[F[_]: TaskLike](e : F[Effect]): StateWithEffects[State, Effect] = {
+    StateWithEffects(self, Observable.fromTaskLike(e))
+  }
+
+  protected implicit def manyEffects(e : Observable[Effect]): StateWithEffects[State, Effect] = {
+    StateWithEffects(self, e)
+  }
+
+}
+
+
+trait EffectReducer[Action, State, Effect] {
   def reduce(self: State, action: Action): (State, Observable[Effect])
 }
 
-object StateEffectsReducer {
-  implicit def funcReducer[A, S, E](reducer: (S, A) => (S, Observable[E])): StateEffectsReducer[A, S, E] = (state: S, action: A) => reducer(state, action)
+object EffectReducer {
+//  implicit def funcReducer[A, S, E](reducer: (S, A) => (S, Observable[E])): StateEffectsReducer[A, S, E] = (state: S, action: A) => reducer(state, action)
 
-  @deprecated("", "")
-  implicit def evolvableStateReducer[A, E, S <: EvolvableStateWithEffects[A, S, E]]: StateEffectsReducer[A, S, E] = (state: S, action: A) => state.evolve(action).tupled
+  implicit def evolvableStateReducer[A, E, S <: EvolvableStateWithEffects[A, S, E]]: EffectReducer[A, S, E] = (state: S, action: A) => state.evolve(action).tupled
+
+  def apply[A, S, E](f: (S, A) => StateWithEffects[S, E]): EffectReducer[A, S, E] = (s, a) => f(s, a).tupled
 }
 
 
@@ -63,15 +88,23 @@ object Store {
 
   def create[Action, State](
     initialState: State
-  )(implicit r: StateReducer[Action, State]): IO[Action >--> State] = {
+  )(implicit r: Reducer[Action, State]): IO[Action >--> State] = {
     create(Seq.empty, initialState)(r)
   }
+  
+  def create[Action, State](
+    initActions: Seq[Action],
+    initialState: State
+  )(implicit r: Reducer[Action, State]): IO[Action >--> State] = {
+    create(initActions, initialState, Observable.empty)(r)
+  }
+
 
   def create[Action, State](
     initActions: Seq[Action],
     initialState: State,
-    actionSource: Observable[Action] = Observable.empty,
-  )(implicit r: StateReducer[Action, State]): IO[Action >--> State] = {
+    actionSource: Observable[Action]
+  )(implicit r: Reducer[Action, State]): IO[Action >--> State] = {
 
     IO.deferAction { implicit scheduler =>
       Handler.create[Action](initActions: _*).map { handler =>
@@ -101,7 +134,7 @@ object Store {
     initActions: Seq[Action],
     initialState: State,
     effects: IO[Effect >--> Action]
-  )(implicit r: StateEffectsReducer[Action, State, Effect]): IO[Action >--> State] = {
+  )(implicit r: EffectReducer[Action, State, Effect]): IO[Action >--> State] = {
     create(initActions, initialState, effects, Observable.empty)
   }
 
@@ -111,7 +144,7 @@ object Store {
     initialState: State,
     effects: IO[Effect >--> Action],
     actionSource: Observable[Action]
-  )(implicit r: StateEffectsReducer[Action, State, Effect]): IO[Action >--> State] = {
+  )(implicit r: EffectReducer[Action, State, Effect]): IO[Action >--> State] = {
 
     IO.deferAction { implicit scheduler =>
       Handler.create[Action](initActions: _*).flatMap { handler =>
@@ -152,7 +185,7 @@ object Store {
     initActions: Seq[Action],
     initialState: State,
     effects: Seq[IO[Effect >--> Action]]
-  )(implicit r: StateEffectsReducer[Action, State, Effect]): IO[Action >--> State] = {
+  )(implicit r: EffectReducer[Action, State, Effect]): IO[Action >--> State] = {
 
     import cats.instances.list._
     import cats.syntax.traverse._
@@ -196,7 +229,7 @@ object Store {
     effects1: IO[Effect >--> Action],
     effects2: IO[Effect >--> Action],
     effects: IO[Effect >--> Action]*
-  )(implicit r: StateEffectsReducer[Action, State, Effect]): IO[Action >--> State] = {
+  )(implicit r: EffectReducer[Action, State, Effect]): IO[Action >--> State] = {
     create(initActions, initialState, effects1 :: effects2 :: effects.toList)
   }
 

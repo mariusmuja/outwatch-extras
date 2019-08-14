@@ -7,7 +7,7 @@ import monix.reactive.Observable
 import org.scalajs.dom
 import outwatch.Handler
 import outwatch.dom._
-import outwatch.extras.redux.{Effects, StateEffectsReducer, StateReducer, StateWithEffects, Store}
+import outwatch.extras.redux._
 import outwatch.extras.router.{BaseUrl, RouterOps}
 import outwatch.extras.styles.Styles
 import outwatch.extras.{<--<, >-->}
@@ -28,23 +28,19 @@ object Logger extends LogAreaStyle {
 
   type Effect = Console.Effect
 
-  case class State(
+  private case class State(
     log: Seq[String] = Seq("Log:")
-  ) {
+  ) extends EvolvableStateWithEffects[Action, State, Effect]{
 
     val evolve : Action => StateWithEffects[State, Effect] = {
       case InitEffect(message) =>
-        this -> Console.Effect.Log(message)
+        Console.Effect.Log(message)
       case Init(message) =>
         copy(log :+ message)
       case LogAction(line) =>
         dom.console.log(s"Log >>>> $line")
         copy(log :+ s"$now : $line")
     }
-  }
-
-  object State {
-    implicit val ev: StateEffectsReducer[Action, State, Effect] = (s, a) => (s evolve a).tupled
   }
 
   def view(handler: State <--< Action)(implicit S: Style): VNode = {
@@ -145,8 +141,8 @@ object TodoModule extends TodoModuleStyle {
 
   case class State(
     todos: Seq[Todo] = Seq.empty
-  ) { self =>
-    val evolve: Action => StateWithEffects[State, Effect] = {
+  ) extends EvolvableStateWithEffects[Action, State, Effect] { self =>
+    val evolve = {
       case AddTodo(value) =>
         if (value == "show log") {
           self -> Effect.GoTo(Page.Log("Log as effect"))
@@ -156,10 +152,6 @@ object TodoModule extends TodoModuleStyle {
       case RemoveTodo(todo) =>
         copy(todos = todos.filter(_.id != todo.id))
     }
-  }
-
-  object State {
-    implicit val ev: StateEffectsReducer[Action, State, Effect] = (s, a) => (s evolve a).tupled
   }
 
   import outwatch.dom.dsl.styles._
@@ -247,14 +239,11 @@ object TodoComponent {
 
   case class State(
     lastAction: String = "None"
-  ) {
-    val evolve: Action => State = {
+  ) extends EvolvableState[Action, State] {
+    val evolve = {
       case Action.AddTodo(value) => copy(lastAction = s"Add $value")
       case Action.RemoveTodo(value) => copy(lastAction = s"Remove $value")
     }
-  }
-  object State {
-    implicit val ev: StateReducer[Action, State] = _ evolve _
   }
 
   def view(store: Action >--> State): VNode = {
